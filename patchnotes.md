@@ -1,5 +1,9 @@
 # Patch Notes
 
+## [0.2.2] - 2026-08-15
+### Changed
+- Converted the entire QML UI to the **Kanagawa Dragon** colour scheme. Replaced placeholder colours with exact hex values parsed from desktop configurations (`#181616` background, `#282727` surface, `#c5c9c5` foreground, `#625e5a` muted text, with Dragon Red and Green accents).
+
 ## [0.2.1] - 2026-08-15
 ### Added
 - **Phase 5**: Hooked the backend `FileTree` into QML via a CXX-Qt `DirectoryModel` (`QAbstractListModel`).
