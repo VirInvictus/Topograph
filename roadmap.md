@@ -256,6 +256,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 
 - [ ] Post-1.0 Phase: **TUI Mode (Terminal User Interface)**
   - [ ] Implement a new `topograph-tui` crate in the workspace dependent on `topograph-core`.
+  - [ ] Reference existing portfolio TUI idioms and layouts from `../Lattice` and `../CalibreQuarry` to ensure cross-project UX consistency.
   - [ ] Select a Rust TUI framework (e.g., `ratatui`).
   - [ ] Implement a dual-pane terminal layout matching the GUI (Tree on left, visualization on right).
   - [ ] Build a text-based Squarified Treemap renderer using block drawing characters (Braille or half-blocks).
