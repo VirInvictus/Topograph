@@ -253,3 +253,15 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [ ] Complete a final manual QA pass of all interactive features.
   - [ ] Cut the `v1.0.0` git tag.
   - [ ] Write the release announcement in `patchnotes.md`.
+
+- [ ] Post-1.0 Phase: **TUI Mode (Terminal User Interface)**
+  - [ ] Implement a new `topograph-tui` crate in the workspace dependent on `topograph-core`.
+  - [ ] Select a Rust TUI framework (e.g., `ratatui`).
+  - [ ] Implement a dual-pane terminal layout matching the GUI (Tree on left, visualization on right).
+  - [ ] Build a text-based Squarified Treemap renderer using block drawing characters (Braille or half-blocks).
+  - [ ] Map the Kanagawa Dragon palette to ANSI escape codes for the terminal.
+  - [ ] Wire up keyboard navigation (Vim bindings: `h`, `j`, `k`, `l`) for tree traversal.
+  - [ ] Bind atomic progress counters to a terminal progress bar during the scan phase.
+  - [ ] Ensure graceful fallback if the terminal does not support truecolor.
+  - [ ] Add CLI arguments (`--tui`) to launch directly into the terminal mode instead of Qt.
+  - [ ] Write documentation for the TUI mode in `README.md`.
