@@ -1,7 +1,7 @@
 use jwalk::WalkDir;
 use std::path::{Path, PathBuf};
 use crossbeam_channel::{Sender, Receiver, bounded};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicU64, Ordering};
 use std::sync::Arc;
 use crate::{NodeData, NodeFlags, FileTree};
 use indextree::NodeId;
@@ -15,9 +15,17 @@ pub struct ScanResult {
     pub data: NodeData,
 }
 
+#[derive(Default)]
+pub struct ScanMetrics {
+    pub total_files: AtomicUsize,
+    pub total_bytes: AtomicU64,
+    pub is_finished: AtomicBool,
+}
+
 pub struct Scanner {
     cancel_token: Arc<AtomicBool>,
     pub cross_filesystems: bool,
+    pub metrics: Arc<ScanMetrics>,
 }
 
 impl Default for Scanner {
@@ -31,6 +39,7 @@ impl Scanner {
         Self {
             cancel_token: Arc::new(AtomicBool::new(false)),
             cross_filesystems: false, // Default to strict boundaries
+            metrics: Arc::new(ScanMetrics::default()),
         }
     }
 
@@ -43,6 +52,7 @@ impl Scanner {
         let root_path = root.as_ref().to_path_buf();
         let cancel_token = self.cancel_token.clone();
         let cross_fs = self.cross_filesystems;
+        let metrics = self.metrics.clone();
 
         std::thread::spawn(move || {
             let root_metadata = std::fs::symlink_metadata(&root_path).ok();
@@ -112,6 +122,9 @@ impl Scanner {
                     };
 
                     let name = dir_entry.file_name().to_string_lossy().to_string();
+
+                    metrics.total_files.fetch_add(1, Ordering::Relaxed);
+                    metrics.total_bytes.fetch_add(size, Ordering::Relaxed);
 
                     let result = ScanResult {
                         path,

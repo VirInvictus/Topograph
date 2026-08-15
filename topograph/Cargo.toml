@@ -2,5 +2,13 @@
 name = "topograph"
 version = "0.2.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
+cxx = "1.0"
+cxx-qt = "0.6"
+cxx-qt-lib = "0.6"
+topograph-core = { path = "../topograph-core" }
+
+[build-dependencies]
+cxx-qt-build = "0.6"

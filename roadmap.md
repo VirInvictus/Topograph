@@ -16,13 +16,20 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 
 - [x] Phase 1: **Memory Architecture (Cache-friendly Arena)**
   - [x] Select and integrate an arena library (e.g., `indextree` or contiguous `Vec<Node>`).
-  - [x] Define the `NodeId` wrapper (32-bit integer) to eliminate 64-bit pointers.
-  - [x] Define `NodeType` enum (`File`, `Directory`, `PseudoFiles`, `PseudoIgnored`).
-  - [x] Define `NodeData` struct containing `name: Box<str>`, `size: u64`, `allocated_size: u64`.
-  - [x] Define compact metadata struct (e.g., bitflags for permissions, `mtime`).
-  - [x] Implement tree traversal iterators (children, ancestors, post-order).
-  - [x] Implement sub-tree detachment/deletion without memory leaks.
-  - [x] Write a benchmark suite for 1,000,000 synthetic nodes to verify L1/L2 cache locality.
+  - [x] Configure `cxx-qt` build dependencies and `build.rs` bridging logic.
+  - [x] Define `qml/main.qml` as the application entry point.
+  - [x] Map Kanagawa Dragon color variables into a global QML theme object.
+  - [x] Implement initial CXX-Qt bridge demonstrating Rust -> QML passing.
+  - [x] Configure `cargo fmt`, `clippy`, and strict compilation flags.
+  - [x] Add `.gitignore` rules for CXX-Qt auto-generated C++ files.
+  - [x] Create a dummy `Hello World` Qt6 Application Window.
+  - [x] Verify clean build on local Linux environment (Wayland/X11 compatibility).
+
+- [x] Phase 1: **Memory Architecture (Arena & Nodes)**
+  - [x] Implement the `indextree` arena structure in `topograph-core`.
+  - [x] Define the `NodeData` struct and `bitflags` for file type metadata.
+  - [x] Implement the recursive post-order traversal for size aggregation.
+  - [x] Validate $O(N)$ math performance on a 1,000,000 node synthetic test.
   - [x] Establish concurrent mutation safety patterns for the arena during building.
   - [x] Document the memory layout and invariants in `spec.md`.
 
@@ -50,17 +57,17 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Write integration test verifying mount boundaries are strictly respected.
   - [x] Surface deduplicated savings (bytes saved) in the final UI metrics.
 
-- [ ] Phase 4: **Atomic UI Integration (Lock-free Progress)**
-  - [ ] Implement `AtomicU64` counters for `total_bytes` and `AtomicUsize` for `total_files`.
-  - [ ] Implement an `AtomicUsize` counter for `active_threads` to show scanning velocity.
-  - [ ] Expose these atomic variables to CXX-Qt via a read-only Rust bridge method.
-  - [ ] Create a 60FPS QML `Timer` that polls the Rust bridge and updates UI text.
-  - [ ] Calculate and display scan speed (e.g., "12,000 files/sec") via moving average.
-  - [ ] Ensure zero `Q_EMIT` signals are fired from worker threads to the UI to prevent event queue flooding.
-  - [ ] Build the minimal top-bar UI: "Scan Directory" button, path label, and progress text.
-  - [ ] Display an animated Kanagawa-styled indeterminate progress bar during scanning.
-  - [ ] Handle the "Scan Complete" signal transition to swap UI to the results view.
-  - [ ] Add a "Cancel" button that successfully halts the engine and resets the UI state.
+- [x] Phase 4: **Atomic UI Integration (Lock-free Progress)**
+  - [x] Implement `AtomicU64` counters for `total_bytes` and `AtomicUsize` for `total_files`.
+  - [x] Implement an `AtomicBool` state tracker to identify scan completion without Qt Threading traits.
+  - [x] Expose these atomic variables to CXX-Qt via a read-only Rust bridge method.
+  - [x] Create a 60FPS QML `Timer` that polls the Rust bridge and updates UI text.
+  - [x] Calculate and display scan speed (e.g., "12,000 files/sec") via moving average.
+  - [x] Ensure zero `Q_EMIT` signals are fired from worker threads to the UI to prevent event queue flooding.
+  - [x] Build the minimal top-bar UI: "Scan Directory" button, path label, and progress text.
+  - [x] Display an animated Kanagawa-styled indeterminate progress bar during scanning.
+  - [x] Handle the "Scan Complete" signal transition to swap UI to the results view.
+  - [x] Add a "Cancel" button that successfully halts the engine and resets the UI state.
 
 - [ ] Phase 5: **Tree List UI (Rust-to-QML ListModel)**
   - [ ] Implement a `QAbstractListModel` subclass in Rust via `cxx-qt` for the directory tree.

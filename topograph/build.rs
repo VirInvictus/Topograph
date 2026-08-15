@@ -1,0 +1,6 @@
+fn main() {
+    cxx_qt_build::CxxQtBuilder::new()
+        .file("src/bridge.rs")
+        .qrc("qml/qml.qrc")
+        .build();
+}
