@@ -11,6 +11,7 @@ bitflags! {
         const IS_SYMLINK   = 0b0000_0010;
         const IS_HIDDEN    = 0b0000_0100;
         const IS_PSEUDO    = 0b0000_1000; // E.g., <Files> or <Ignored> group nodes
+        const IS_HARDLINK_DUPE = 0b0001_0000;
     }
 }
 

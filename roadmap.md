@@ -38,17 +38,17 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Implement the bridging logic to stream scanned chunks back to the arena.
   - [x] Write a headless test harness running the scanner against a large system directory.
 
-- [ ] Phase 3: **Deduplication & File System Boundaries**
-  - [ ] Parse `/proc/mounts` at startup to build a list of external mounts.
-  - [ ] Compare `st_dev` (device ID) of directories against the root to prevent traversing into different filesystems.
-  - [ ] Implement a fast-path gate checking `st_nlink > 1` before performing hardlink deduplication.
-  - [ ] Create a sharded `DashMap` or partitioned `parking_lot::RwLock<HashSet>` for `(dev, inode)` tracking.
-  - [ ] Ensure the first encountered hardlink adds to total size; subsequent encounters add to file count but 0 to size.
-  - [ ] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested.
-  - [ ] Add explicit checks to prevent traversing virtual file systems (`/proc`, `/sys`, `/dev`, `run`).
-  - [ ] Test hardlink dedup against a synthetic test directory with multiple complex links.
-  - [ ] Write integration test verifying mount boundaries are strictly respected.
-  - [ ] Surface deduplicated savings (bytes saved) in the final UI metrics.
+- [x] Phase 3: **Deduplication & File System Boundaries**
+  - [x] Parse `/proc/mounts` at startup to build a list of external mounts (Solved via `st_dev` boundary checking).
+  - [x] Compare `st_dev` (device ID) of directories against the root to prevent traversing into different filesystems.
+  - [x] Implement a fast-path gate checking `st_nlink > 1` before performing hardlink deduplication.
+  - [x] Create a sharded `DashMap` or partitioned `parking_lot::RwLock<HashSet>` for `(dev, inode)` tracking.
+  - [x] Ensure the first encountered hardlink adds to total size; subsequent encounters add to file count but 0 to size.
+  - [x] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested.
+  - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
+  - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
+  - [x] Write integration test verifying mount boundaries are strictly respected.
+  - [x] Surface deduplicated savings (bytes saved) in the final UI metrics.
 
 - [ ] Phase 4: **Atomic UI Integration (Lock-free Progress)**
   - [ ] Implement `AtomicU64` counters for `total_bytes` and `AtomicUsize` for `total_files`.
