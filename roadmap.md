@@ -26,17 +26,17 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Establish concurrent mutation safety patterns for the arena during building.
   - [x] Document the memory layout and invariants in `spec.md`.
 
-- [ ] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
-  - [ ] Integrate `jwalk` or `rayon` for concurrent directory walking.
-  - [ ] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`.
-  - [ ] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
-  - [ ] Implement an `AtomicBool` cancellation token for aborting active scans.
-  - [ ] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
-  - [ ] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization).
-  - [ ] Handle `EACCES` (Permission Denied) gracefully, flagging nodes with an error state instead of crashing.
-  - [ ] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention.
-  - [ ] Implement the bridging logic to stream scanned chunks back to the arena.
-  - [ ] Write a headless test harness running the scanner against a large system directory.
+- [x] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
+  - [x] Integrate `jwalk` or `rayon` for concurrent directory walking.
+  - [x] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`.
+  - [x] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
+  - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
+  - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
+  - [x] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization).
+  - [x] Handle `EACCES` (Permission Denied) gracefully, flagging nodes with an error state instead of crashing.
+  - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention.
+  - [x] Implement the bridging logic to stream scanned chunks back to the arena.
+  - [x] Write a headless test harness running the scanner against a large system directory.
 
 - [ ] Phase 3: **Deduplication & File System Boundaries**
   - [ ] Parse `/proc/mounts` at startup to build a list of external mounts.

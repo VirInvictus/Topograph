@@ -7,3 +7,5 @@ authors = ["Brandon"]
 [dependencies]
 indextree = "4.6"
 bitflags = "2.4"
+jwalk = "0.8"
+crossbeam-channel = "0.5"
