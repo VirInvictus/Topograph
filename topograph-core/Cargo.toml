@@ -2,5 +2,8 @@
 name = "topograph-core"
 version = "0.1.0"
 edition = "2024"
+authors = ["Brandon"]
 
 [dependencies]
+indextree = "4.6"
+bitflags = "2.4"
