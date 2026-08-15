@@ -6,7 +6,7 @@ pub mod qobject {
     }
 
     unsafe extern "RustQt" {
-        #[qobject]
+        #[qobject(qml_uri = "com.topograph", qml_version = "1.0")]
         #[qml_element]
         #[qproperty(bool, is_scanning)]
         #[qproperty(QString, progress_text)]
