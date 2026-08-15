@@ -14,17 +14,17 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [ ] Create a dummy `Hello World` Qt6 Application Window.
   - [ ] Verify clean build on local Linux environment (Wayland/X11 compatibility).
 
-- [ ] Phase 1: **Memory Architecture (Cache-friendly Arena)**
-  - [ ] Select and integrate an arena library (e.g., `indextree` or contiguous `Vec<Node>`).
-  - [ ] Define the `NodeId` wrapper (32-bit integer) to eliminate 64-bit pointers.
-  - [ ] Define `NodeType` enum (`File`, `Directory`, `PseudoFiles`, `PseudoIgnored`).
-  - [ ] Define `NodeData` struct containing `name: Box<str>`, `size: u64`, `allocated_size: u64`.
-  - [ ] Define compact metadata struct (e.g., bitflags for permissions, `mtime`).
-  - [ ] Implement tree traversal iterators (children, ancestors, post-order).
-  - [ ] Implement sub-tree detachment/deletion without memory leaks.
-  - [ ] Write a benchmark suite for 1,000,000 synthetic nodes to verify L1/L2 cache locality.
-  - [ ] Establish concurrent mutation safety patterns for the arena during building.
-  - [ ] Document the memory layout and invariants in `spec.md`.
+- [x] Phase 1: **Memory Architecture (Cache-friendly Arena)**
+  - [x] Select and integrate an arena library (e.g., `indextree` or contiguous `Vec<Node>`).
+  - [x] Define the `NodeId` wrapper (32-bit integer) to eliminate 64-bit pointers.
+  - [x] Define `NodeType` enum (`File`, `Directory`, `PseudoFiles`, `PseudoIgnored`).
+  - [x] Define `NodeData` struct containing `name: Box<str>`, `size: u64`, `allocated_size: u64`.
+  - [x] Define compact metadata struct (e.g., bitflags for permissions, `mtime`).
+  - [x] Implement tree traversal iterators (children, ancestors, post-order).
+  - [x] Implement sub-tree detachment/deletion without memory leaks.
+  - [x] Write a benchmark suite for 1,000,000 synthetic nodes to verify L1/L2 cache locality.
+  - [x] Establish concurrent mutation safety patterns for the arena during building.
+  - [x] Document the memory layout and invariants in `spec.md`.
 
 - [ ] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
   - [ ] Integrate `jwalk` or `rayon` for concurrent directory walking.
