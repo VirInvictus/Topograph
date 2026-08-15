@@ -8,7 +8,7 @@ ApplicationWindow {
     width: 1024
     height: 768
     title: "Topograph"
-    color: "#1F1F28" // Kanagawa Sumi Ink 1 (Background)
+    color: "#181616" // Kanagawa Dragon Background
 
     ScanBridge {
         id: bridge
@@ -32,9 +32,9 @@ ApplicationWindow {
                 id: pathInput
                 Layout.fillWidth: true
                 text: "/"
-                color: "#DCD7BA" // Fuji White
+                color: "#c5c9c5" // Dragon Foreground
                 background: Rectangle {
-                    color: "#2A2A37" // Sumi Ink 2
+                    color: "#282727" // Dragon Surface
                     radius: 4
                 }
             }
@@ -49,12 +49,12 @@ ApplicationWindow {
                     }
                 }
                 background: Rectangle {
-                    color: bridge.isScanning ? "#C34043" : "#76946A" // Autumn Red vs Spring Green
+                    color: bridge.isScanning ? "#c4746e" : "#87a987" // Dragon Red vs Green
                     radius: 4
                 }
                 contentItem: Text {
                     text: parent.text
-                    color: "#DCD7BA"
+                    color: "#c5c9c5" // Dragon Foreground
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -67,7 +67,7 @@ ApplicationWindow {
             
             Text {
                 text: bridge.progressText
-                color: "#957FB8" // Oni Violet
+                color: "#8ba4b0" // Dragon Blue
                 font.pixelSize: 14
             }
 
@@ -78,7 +78,7 @@ ApplicationWindow {
                 indeterminate: bridge.isScanning
                 visible: bridge.isScanning
                 background: Rectangle {
-                    color: "#2A2A37"
+                    color: "#282727" // Dragon Surface
                     radius: 2
                 }
                 contentItem: Item {
@@ -86,7 +86,7 @@ ApplicationWindow {
                         id: progressRect
                         width: parent.width * 0.3
                         height: parent.height
-                        color: "#E82424" // Samurai Red
+                        color: "#c4746e" // Dragon Red
                         radius: 2
                         NumberAnimation on x {
                             from: 0
@@ -101,7 +101,7 @@ ApplicationWindow {
 
             Text {
                 text: bridge.speedText
-                color: "#7E9CD8" // Crystal Blue
+                color: "#8ea4a2" // Dragon Aqua
                 font.pixelSize: 14
             }
         }
@@ -110,7 +110,7 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#16161D" // Sumi Ink 0
+            color: "#181616" // Dragon Background
             radius: 8
             clip: true
             
@@ -139,7 +139,7 @@ ApplicationWindow {
                         
                         Text {
                             text: model.fileName
-                            color: "#DCD7BA"
+                            color: "#c5c9c5" // Dragon Foreground
                             font.pixelSize: 14
                             Layout.fillWidth: true
                             elide: Text.ElideRight
@@ -150,7 +150,7 @@ ApplicationWindow {
                                 let mb = model.fileSize / (1024 * 1024);
                                 return mb.toFixed(2) + " MB";
                             }
-                            color: "#957FB8"
+                            color: "#625e5a" // Dragon Muted
                             font.pixelSize: 14
                             horizontalAlignment: Text.AlignRight
                         }
@@ -161,7 +161,7 @@ ApplicationWindow {
             Text {
                 anchors.centerIn: parent
                 text: bridge.isScanning ? "Scanning..." : "Ready."
-                color: "#54546D"
+                color: "#625e5a" // Dragon Muted
                 font.pixelSize: 24
                 visible: treeView.count === 0
             }
