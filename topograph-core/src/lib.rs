@@ -76,6 +76,14 @@ impl FileTree {
         self.arena.get(node).map(|n| n.get())
     }
 
+    pub fn get_root(&self) -> Option<NodeId> {
+        self.root
+    }
+
+    pub fn get_children(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        node.children(&self.arena)
+    }
+
     /// Recursively calculates and updates the total size of each directory node.
     /// This is an O(N) post-order traversal operation.
     pub fn aggregate_sizes(&mut self) {

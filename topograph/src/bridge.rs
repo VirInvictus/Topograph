@@ -1,12 +1,12 @@
 #[cxx_qt::bridge]
-pub mod qobject {
+pub mod scan_bridge {
     unsafe extern "C++" {
         include!("cxx-qt-lib/qstring.h");
         type QString = cxx_qt_lib::QString;
     }
 
     unsafe extern "RustQt" {
-        #[qobject(qml_uri = "com.topograph", qml_version = "1.0")]
+        #[qobject]
         #[qml_element]
         #[qproperty(bool, is_scanning)]
         #[qproperty(QString, progress_text)]
@@ -45,7 +45,14 @@ pub struct ScanBridgeRust {
     last_update_time: Option<std::time::Instant>,
 }
 
-impl qobject::ScanBridge {
+use std::sync::RwLock;
+use topograph_core::FileTree;
+
+lazy_static::lazy_static! {
+    pub static ref LATEST_TREE: Arc<RwLock<Option<FileTree>>> = Arc::new(RwLock::new(None));
+}
+
+impl scan_bridge::ScanBridge {
     pub fn start_scan(mut self: Pin<&mut Self>, path: QString) {
         self.as_mut().set_is_scanning(true);
         self.as_mut().set_current_path(path.clone());
@@ -63,6 +70,10 @@ impl qobject::ScanBridge {
         std::thread::spawn(move || {
             let mut tree = topograph_core::scanner::build_tree_from_scan(rx);
             tree.aggregate_sizes();
+            
+            if let Ok(mut lock) = LATEST_TREE.write() {
+                *lock = Some(tree);
+            }
             
             metrics.is_finished.store(true, Ordering::Relaxed);
         });
@@ -127,4 +138,8 @@ impl qobject::ScanBridge {
             rust_mut.last_update_time = Some(now);
         }
     }
+}
+
+pub fn force_link() {
+    let _ = scan_bridge::ScanBridge::start_scan as *const ();
 }

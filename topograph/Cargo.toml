@@ -1,6 +1,6 @@
 [package]
 name = "topograph"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 build = "build.rs"
 
@@ -8,6 +8,7 @@ build = "build.rs"
 cxx = "1.0"
 cxx-qt = "0.6"
 cxx-qt-lib = "0.6"
+lazy_static = "1.5.0"
 topograph-core = { path = "../topograph-core" }
 
 [build-dependencies]

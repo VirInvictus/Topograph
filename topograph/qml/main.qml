@@ -16,9 +16,9 @@ ApplicationWindow {
 
     Timer {
         interval: 16 // ~60fps
-        running: bridge.is_scanning
+        running: bridge.isScanning
         repeat: true
-        onTriggered: bridge.update_metrics()
+        onTriggered: bridge.updateMetrics()
     }
 
     ColumnLayout {
@@ -40,16 +40,16 @@ ApplicationWindow {
             }
 
             Button {
-                text: bridge.is_scanning ? "Cancel" : "Scan"
+                text: bridge.isScanning ? "Cancel" : "Scan"
                 onClicked: {
-                    if (bridge.is_scanning) {
-                        bridge.cancel_scan()
+                    if (bridge.isScanning) {
+                        bridge.cancelScan()
                     } else {
-                        bridge.start_scan(pathInput.text)
+                        bridge.startScan(pathInput.text)
                     }
                 }
                 background: Rectangle {
-                    color: bridge.is_scanning ? "#C34043" : "#76946A" // Autumn Red vs Spring Green
+                    color: bridge.isScanning ? "#C34043" : "#76946A" // Autumn Red vs Spring Green
                     radius: 4
                 }
                 contentItem: Text {
@@ -63,10 +63,10 @@ ApplicationWindow {
 
         RowLayout {
             Layout.fillWidth: true
-            visible: bridge.is_scanning || bridge.progress_text !== ""
+            visible: bridge.isScanning || bridge.progressText !== ""
             
             Text {
-                text: bridge.progress_text
+                text: bridge.progressText
                 color: "#957FB8" // Oni Violet
                 font.pixelSize: 14
             }
@@ -75,48 +75,108 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.leftMargin: 10
                 Layout.rightMargin: 10
-                indeterminate: bridge.is_scanning
-                visible: bridge.is_scanning
+                indeterminate: bridge.isScanning
+                visible: bridge.isScanning
                 background: Rectangle {
                     color: "#2A2A37"
                     radius: 2
                 }
                 contentItem: Item {
                     Rectangle {
+                        id: progressRect
                         width: parent.width * 0.3
                         height: parent.height
                         color: "#E82424" // Samurai Red
                         radius: 2
                         NumberAnimation on x {
                             from: 0
-                            to: parent.width * 0.7
+                            to: progressRect.parent.width * 0.7
                             duration: 1000
                             loops: Animation.Infinite
-                            running: bridge.is_scanning
+                            running: bridge.isScanning
                         }
                     }
                 }
             }
 
             Text {
-                text: bridge.speed_text
+                text: bridge.speedText
                 color: "#7E9CD8" // Crystal Blue
                 font.pixelSize: 14
             }
         }
 
-        // Placeholder for the visualization & tree view
+        // Content Area
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#16161D" // Sumi Ink 0 (Darker background for content)
+            color: "#16161D" // Sumi Ink 0
             radius: 8
+            clip: true
             
+            ListView {
+                id: treeView
+                anchors.fill: parent
+                anchors.margins: 8
+                model: dirModel
+                
+                delegate: Item {
+                    width: treeView.width
+                    height: 24
+                    
+                    RowLayout {
+                        anchors.fill: parent
+                        
+                        // Indentation based on depth
+                        Item {
+                            Layout.preferredWidth: model.depth * 20
+                        }
+                        
+                        Text {
+                            text: model.isDirectory ? "📁" : "📄"
+                            font.pixelSize: 14
+                        }
+                        
+                        Text {
+                            text: model.fileName
+                            color: "#DCD7BA"
+                            font.pixelSize: 14
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+                        
+                        Text {
+                            text: {
+                                let mb = model.fileSize / (1024 * 1024);
+                                return mb.toFixed(2) + " MB";
+                            }
+                            color: "#957FB8"
+                            font.pixelSize: 14
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+                }
+            }
+
             Text {
                 anchors.centerIn: parent
-                text: bridge.is_scanning ? "Scanning..." : "Ready."
-                color: "#54546D" // Sumi Ink 4 (Disabled text)
+                text: bridge.isScanning ? "Scanning..." : "Ready."
+                color: "#54546D"
                 font.pixelSize: 24
+                visible: treeView.count === 0
+            }
+        }
+    }
+
+    DirectoryModel {
+        id: dirModel
+    }
+
+    Connections {
+        target: bridge
+        function onIsScanningChanged() {
+            if (!bridge.isScanning && bridge.progressText === "Scan complete.") {
+                dirModel.loadTree()
             }
         }
     }

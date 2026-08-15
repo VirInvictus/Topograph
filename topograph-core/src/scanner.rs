@@ -1,6 +1,6 @@
 use jwalk::WalkDir;
 use std::path::{Path, PathBuf};
-use crossbeam_channel::{Sender, Receiver, bounded};
+use crossbeam_channel::{Receiver, bounded};
 use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicU64, Ordering};
 use std::sync::Arc;
 use crate::{NodeData, NodeFlags, FileTree};
@@ -98,7 +98,7 @@ impl Scanner {
                     }
 
                     // Metadata fetch handles POSIX stat, falling back cleanly on EACCES
-                    let (mut size, mut allocated_size, mtime) = if let Ok(metadata) = dir_entry.metadata() {
+                    let (size, allocated_size, mtime) = if let Ok(metadata) = dir_entry.metadata() {
                         let dev = metadata.dev();
                         let inode = metadata.ino();
                         let nlink = metadata.nlink();

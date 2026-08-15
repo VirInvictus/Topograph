@@ -69,13 +69,12 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Handle the "Scan Complete" signal transition to swap UI to the results view.
   - [x] Add a "Cancel" button that successfully halts the engine and resets the UI state.
 
-- [ ] Phase 5: **Tree List UI (Rust-to-QML ListModel)**
-  - [ ] Implement a `QAbstractListModel` subclass in Rust via `cxx-qt` for the directory tree.
-  - [ ] Map Qt roles (NameRole, SizeRole, PercentRole, IconRole) to Rust arena lookups.
-  - [ ] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows.
-  - [ ] Build the `TreeView` or `TableView` in QML with custom delegates for Kanagawa styling.
-  - [ ] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB).
-  - [ ] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column.
+- [x] **Phase 5 (ListModel hookup):** Hook the tree into QML. Hook `FileTree` into QML as a standard `QAbstractListModel` so that `TreeView` / `ListView` can inspect the hierarchy.tory tree.
+  - [x] Map Qt roles (NameRole, SizeRole, PercentRole, IconRole) to Rust arena lookups.
+  - [x] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows.
+  - [x] Build the `TreeView` or `TableView` in QML with custom delegates for Kanagawa styling.
+  - [x] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB).
+  - [x] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column.
   - [ ] Bind keyboard navigation (Up/Down/Left/Right) to expand/collapse folders.
   - [ ] Ensure scrolling performance remains at 60FPS even with 100,000 expanded nodes.
   - [ ] Handle model invalidation/reset when a new scan completes.
