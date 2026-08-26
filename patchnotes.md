@@ -1,3 +1,7 @@
+## v0.2.3 (2026-08-23)
+
+- **Build:** build: add GitHub Actions Qt6 CI workflow
+
 # Patch Notes
 
 ## [0.2.2] - 2026-08-15
