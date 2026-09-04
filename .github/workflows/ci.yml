@@ -17,5 +17,9 @@ jobs:
           version: '6.6.0'
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: cargo test
         run: cargo test

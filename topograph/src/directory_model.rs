@@ -58,7 +58,7 @@ pub mod dir_model {
         #[cxx_override]
         #[cxx_name = "data"]
         fn data(self: &DirectoryModel, index: &QModelIndex, role: i32) -> QVariant;
-        
+
         #[qinvokable]
         #[cxx_name = "loadTree"]
         fn load_tree(self: Pin<&mut DirectoryModel>);
@@ -129,37 +129,39 @@ impl dir_model::DirectoryModel {
     }
 
     pub fn load_tree(mut self: Pin<&mut Self>) {
-        if let Ok(lock) = crate::bridge::LATEST_TREE.read() {
-            if let Some(tree) = lock.as_ref() {
-                let mut new_items = Vec::new();
-                
-                if let Some(root_id) = tree.get_root() {
-                    let root_data = tree.get_data(root_id).unwrap();
-                    new_items.push(NodeDisplay {
-                        file_name: root_data.name.to_string(),
-                        file_size: root_data.size,
-                        file_count: 0,
-                        is_directory: true,
-                        depth: 0,
-                    });
-                    
-                    for child_id in tree.get_children(root_id) {
-                        let child_data = tree.get_data(child_id).unwrap();
-                        new_items.push(NodeDisplay {
-                            file_name: child_data.name.to_string(),
-                            file_size: child_data.size,
-                            file_count: 0,
-                            is_directory: child_data.flags.contains(topograph_core::NodeFlags::IS_DIRECTORY),
-                            depth: 1,
-                        });
-                    }
-                }
+        if let Ok(lock) = crate::bridge::LATEST_TREE.read()
+            && let Some(tree) = lock.as_ref()
+        {
+            let mut new_items = Vec::new();
 
-                unsafe {
-                    self.as_mut().begin_reset_model();
-                    self.as_mut().rust_mut().items = new_items;
-                    self.as_mut().end_reset_model();
+            if let Some(root_id) = tree.get_root() {
+                let root_data = tree.get_data(root_id).unwrap();
+                new_items.push(NodeDisplay {
+                    file_name: root_data.name.to_string(),
+                    file_size: root_data.size,
+                    file_count: 0,
+                    is_directory: true,
+                    depth: 0,
+                });
+
+                for child_id in tree.get_children(root_id) {
+                    let child_data = tree.get_data(child_id).unwrap();
+                    new_items.push(NodeDisplay {
+                        file_name: child_data.name.to_string(),
+                        file_size: child_data.size,
+                        file_count: 0,
+                        is_directory: child_data
+                            .flags
+                            .contains(topograph_core::NodeFlags::IS_DIRECTORY),
+                        depth: 1,
+                    });
                 }
+            }
+
+            unsafe {
+                self.as_mut().begin_reset_model();
+                self.as_mut().rust_mut().items = new_items;
+                self.as_mut().end_reset_model();
             }
         }
     }

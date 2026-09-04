@@ -1,7 +1,7 @@
 pub mod scanner;
 
-use indextree::{Arena, NodeId};
 use bitflags::bitflags;
+use indextree::{Arena, NodeId};
 
 bitflags! {
     /// Compact representation of file metadata and permissions.
@@ -108,7 +108,9 @@ impl FileTree {
         }
 
         if let Some(data) = self.arena.get_mut(node).map(|n| n.get_mut()) {
-            if data.flags.contains(NodeFlags::IS_DIRECTORY) || data.flags.contains(NodeFlags::IS_PSEUDO) {
+            if data.flags.contains(NodeFlags::IS_DIRECTORY)
+                || data.flags.contains(NodeFlags::IS_PSEUDO)
+            {
                 // Directories adopt the accumulated size of their children
                 data.size = total_size;
                 data.allocated_size = total_allocated;
@@ -136,42 +138,44 @@ mod tests {
     #[test]
     fn test_million_node_arena_performance() {
         let mut tree = FileTree::new();
-        
+
         let root_data = NodeData::new("root", 0, 0, 0, NodeFlags::IS_DIRECTORY);
         let root = tree.set_root(root_data);
 
         println!("Building 1,000,000 synthetic nodes...");
         let start = Instant::now();
-        
+
         let mut current_parent = root;
         // Build a wide and deep tree
         for i in 0..100 {
-            let dir = tree.add_child(current_parent, NodeData::new(
-                &format!("dir_{}", i), 0, 0, 0, NodeFlags::IS_DIRECTORY
-            ));
-            
+            let dir = tree.add_child(
+                current_parent,
+                NodeData::new(&format!("dir_{}", i), 0, 0, 0, NodeFlags::IS_DIRECTORY),
+            );
+
             for j in 0..10_000 {
-                tree.add_child(dir, NodeData::new(
-                    &format!("file_{}", j), 1024, 4096, 0, NodeFlags::empty()
-                ));
+                tree.add_child(
+                    dir,
+                    NodeData::new(&format!("file_{}", j), 1024, 4096, 0, NodeFlags::empty()),
+                );
             }
             current_parent = dir; // Create a cascading deep chain of directories
         }
-        
+
         let build_time = start.elapsed();
         println!("Built 1,000,000 nodes in {:?}", build_time);
-        
+
         println!("Running post-order size aggregation...");
         let start_agg = Instant::now();
         tree.aggregate_sizes();
         let agg_time = start_agg.elapsed();
         println!("Aggregated 1,000,000 nodes in {:?}", agg_time);
-        
+
         // The root should now have size = 1,000,000 * 1024
         let root_data = tree.get_data(root).unwrap();
         assert_eq!(root_data.size, 1_000_000 * 1024);
         assert_eq!(root_data.allocated_size, 1_000_000 * 4096);
-        
+
         // Assert speed (1M nodes should aggregate in < 50ms in release mode, maybe a bit more in debug)
         // We won't strictly panic on CI variance, but we log it.
     }

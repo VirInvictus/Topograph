@@ -1,13 +1,13 @@
-use jwalk::WalkDir;
-use std::path::{Path, PathBuf};
+use crate::{FileTree, NodeData, NodeFlags};
 use crossbeam_channel::{Receiver, bounded};
-use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicU64, Ordering};
-use std::sync::Arc;
-use crate::{NodeData, NodeFlags, FileTree};
-use indextree::NodeId;
-use std::collections::HashMap;
 use dashmap::DashSet;
+use indextree::NodeId;
+use jwalk::WalkDir;
+use std::collections::HashMap;
 use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 pub struct ScanResult {
     pub path: PathBuf,
@@ -57,7 +57,7 @@ impl Scanner {
         std::thread::spawn(move || {
             let root_metadata = std::fs::symlink_metadata(&root_path).ok();
             let root_dev = root_metadata.map(|m| m.dev()).unwrap_or(0);
-            
+
             // DashSet tracks (dev, inode) for fast-path O(1) hardlink deduplication across threads
             let seen_inodes = Arc::new(DashSet::<(u64, u64)>::new());
 
@@ -65,15 +65,14 @@ impl Scanner {
                 .skip_hidden(false)
                 .process_read_dir(move |_depth, _path, _state, children| {
                     if !cross_fs && root_dev != 0 {
-                        // Dynamically prune directories that cross into another filesystem 
+                        // Dynamically prune directories that cross into another filesystem
                         // (e.g. /proc, /sys, or mounted drives)
                         children.retain(|dir_entry_result| {
-                            if let Ok(dir_entry) = dir_entry_result {
-                                if let Ok(metadata) = dir_entry.metadata() {
-                                    if metadata.dev() != root_dev {
-                                        return false; // Skip traversing this branch
-                                    }
-                                }
+                            if let Ok(dir_entry) = dir_entry_result
+                                && let Ok(metadata) = dir_entry.metadata()
+                                && metadata.dev() != root_dev
+                            {
+                                return false; // Skip traversing this branch
                             }
                             true
                         });
@@ -88,7 +87,7 @@ impl Scanner {
                 if let Ok(dir_entry) = entry {
                     let path = dir_entry.path();
                     let parent_path = path.parent().map(|p| p.to_path_buf());
-                    
+
                     let mut flags = NodeFlags::empty();
                     let file_type = dir_entry.file_type();
                     if file_type.is_dir() {
@@ -105,7 +104,7 @@ impl Scanner {
                         let mut s = metadata.len();
                         let mut alloc = metadata.blocks() * 512;
 
-                        // Fast-path hardlink deduplication: 
+                        // Fast-path hardlink deduplication:
                         // We only care about checking the concurrent HashSet if st_nlink > 1
                         if !file_type.is_dir() && nlink > 1 {
                             // If insert returns false, the (dev, ino) is already known!
@@ -157,7 +156,7 @@ pub fn build_tree_from_scan(rx: Receiver<ScanResult>) -> FileTree {
         } else {
             tree.set_root(result.data)
         };
-        
+
         path_to_node.insert(result.path, node_id);
     }
     tree
@@ -166,8 +165,8 @@ pub fn build_tree_from_scan(rx: Receiver<ScanResult>) -> FileTree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
     use std::fs::{self, File};
+    use std::time::Instant;
     use tempfile::tempdir;
 
     #[test]
@@ -178,10 +177,10 @@ mod tests {
         let rx = scanner.scan_dir("src");
         let mut tree = build_tree_from_scan(rx);
         tree.aggregate_sizes();
-        
+
         let elapsed = start.elapsed();
         println!("Scanned and built tree for 'src' in {:?}", elapsed);
-        
+
         assert!(tree.get_data(tree.root.unwrap()).is_some());
     }
 
@@ -202,7 +201,7 @@ mod tests {
         tree.aggregate_sizes();
 
         let root_data = tree.get_data(tree.root.unwrap()).unwrap();
-        // Even though there are two 1024-byte files, because of hardlink dedup, 
+        // Even though there are two 1024-byte files, because of hardlink dedup,
         // the size should exactly equal 1024.
         assert_eq!(root_data.size, 1024);
     }

@@ -5,16 +5,21 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 - [x] Phase 0: **Project Skeleton & Qt Bindings**
   - [x] Initialize `topograph` and `topograph-core` Cargo workspaces.
   - [x] Scaffold portfolio documentation (README, spec, roadmap, patchnotes).
-  - [ ] Configure `cxx-qt` build dependencies and `build.rs` bridging logic.
-  - [ ] Define `qml/main.qml` as the application entry point.
-  - [ ] Map Kanagawa Dragon color variables into a global QML theme object.
-  - [ ] Implement initial CXX-Qt bridge demonstrating Rust -> QML passing.
-  - [ ] Configure `cargo fmt`, `clippy`, and strict compilation flags.
-  - [ ] Add `.gitignore` rules for CXX-Qt auto-generated C++ files.
-  - [ ] Create a dummy `Hello World` Qt6 Application Window.
-  - [ ] Verify clean build on local Linux environment (Wayland/X11 compatibility).
+  - [x] Configure `cxx-qt` build dependencies and `build.rs` bridging logic.
+  - [x] Define `qml/main.qml` as the application entry point.
+  - [x] Map Kanagawa Dragon color variables into a global QML theme object.
+  - [x] Implement initial CXX-Qt bridge demonstrating Rust -> QML passing.
+  - [x] Configure `cargo fmt`, `clippy`, and strict compilation flags.
+  - [x] Add `.gitignore` rules for CXX-Qt auto-generated C++ files.
+  - [x] Create a dummy `Hello World` Qt6 Application Window.
+  - [x] Verify clean build on local Linux environment (Wayland/X11 compatibility).
+  *(All ten ticked 2026-09-04: every item is verifiably in the tree — build.rs,
+  main.qml, the Kanagawa palette in QML, the working bridge, fmt/clippy now
+  wired into CI, and target/CXX-Qt outputs gitignored. This Phase 0 copy had
+  been left unticked while the same work was ticked under Phase 1a; the
+  duplicates there are now the single source of truth.)*
 
-- [x] Phase 1: **Memory Architecture (Cache-friendly Arena)**
+- [x] Phase 1a: **Memory Architecture (Cache-friendly Arena)**
   - [x] Select and integrate an arena library (e.g., `indextree` or contiguous `Vec<Node>`).
   - [x] Configure `cxx-qt` build dependencies and `build.rs` bridging logic.
   - [x] Define `qml/main.qml` as the application entry point.
@@ -25,7 +30,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Create a dummy `Hello World` Qt6 Application Window.
   - [x] Verify clean build on local Linux environment (Wayland/X11 compatibility).
 
-- [x] Phase 1: **Memory Architecture (Arena & Nodes)**
+- [x] Phase 1b: **Memory Architecture (Arena & Nodes)**
   - [x] Implement the `indextree` arena structure in `topograph-core`.
   - [x] Define the `NodeData` struct and `bitflags` for file type metadata.
   - [x] Implement the recursive post-order traversal for size aggregation.
@@ -35,11 +40,11 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 
 - [x] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
   - [x] Integrate `jwalk` or `rayon` for concurrent directory walking.
-  - [x] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`.
+  - [ ] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code — traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
   - [x] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
   - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
   - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
-  - [x] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization).
+  - [ ] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
   - [x] Handle `EACCES` (Permission Denied) gracefully, flagging nodes with an error state instead of crashing.
   - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention.
   - [x] Implement the bridging logic to stream scanned chunks back to the arena.
@@ -262,7 +267,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 
 - [ ] Post-1.0 Phase: **TUI Mode (Terminal User Interface)**
   - [ ] Implement a new `topograph-tui` crate in the workspace dependent on `topograph-core`.
-  - [ ] Reference existing portfolio TUI idioms and layouts from `../Lattice` and `../CalibreQuarry` to ensure cross-project UX consistency.
+  - [ ] Reference existing portfolio TUI idioms and layouts from `lattice-music` and `../CalibreQuarry` to ensure cross-project UX consistency.
   - [ ] Select a Rust TUI framework (e.g., `ratatui`).
   - [ ] Implement a dual-pane terminal layout matching the GUI (Tree on left, visualization on right).
   - [ ] Build a text-based Squarified Treemap renderer using block drawing characters (Braille or half-blocks).

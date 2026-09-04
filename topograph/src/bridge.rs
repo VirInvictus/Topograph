@@ -29,8 +29,8 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::QString;
 use std::sync::Arc;
-use topograph_core::scanner::Scanner;
 use std::sync::atomic::Ordering;
+use topograph_core::scanner::Scanner;
 
 #[derive(Default)]
 pub struct ScanBridgeRust {
@@ -38,7 +38,7 @@ pub struct ScanBridgeRust {
     progress_text: QString,
     speed_text: QString,
     current_path: QString,
-    
+
     // Internal state
     scanner: Option<Arc<Scanner>>,
     last_files_count: usize,
@@ -56,8 +56,9 @@ impl scan_bridge::ScanBridge {
     pub fn start_scan(mut self: Pin<&mut Self>, path: QString) {
         self.as_mut().set_is_scanning(true);
         self.as_mut().set_current_path(path.clone());
-        self.as_mut().set_progress_text(QString::from("Starting scan..."));
-        
+        self.as_mut()
+            .set_progress_text(QString::from("Starting scan..."));
+
         let scanner = Arc::new(Scanner::new());
         let mut rust_mut = self.as_mut().rust_mut();
         rust_mut.scanner = Some(scanner.clone());
@@ -65,16 +66,16 @@ impl scan_bridge::ScanBridge {
         rust_mut.last_update_time = Some(std::time::Instant::now());
 
         let rx = scanner.scan_dir(path.to_string());
-        
+
         let metrics = scanner.metrics.clone();
         std::thread::spawn(move || {
             let mut tree = topograph_core::scanner::build_tree_from_scan(rx);
             tree.aggregate_sizes();
-            
+
             if let Ok(mut lock) = LATEST_TREE.write() {
                 *lock = Some(tree);
             }
-            
+
             metrics.is_finished.store(true, Ordering::Relaxed);
         });
     }
@@ -84,7 +85,8 @@ impl scan_bridge::ScanBridge {
             scanner.cancel();
         }
         self.as_mut().set_is_scanning(false);
-        self.as_mut().set_progress_text(QString::from("Scan cancelled."));
+        self.as_mut()
+            .set_progress_text(QString::from("Scan cancelled."));
         self.as_mut().set_speed_text(QString::from(""));
     }
 
@@ -100,11 +102,11 @@ impl scan_bridge::ScanBridge {
                 let files = metrics.total_files.load(Ordering::Relaxed);
                 let bytes = metrics.total_bytes.load(Ordering::Relaxed);
                 let is_finished = metrics.is_finished.load(Ordering::Relaxed);
-                
+
                 let mut elapsed = 0.0;
                 let mut files_diff = 0;
                 let now = std::time::Instant::now();
-                
+
                 if let Some(last_time) = rust.last_update_time {
                     elapsed = now.duration_since(last_time).as_secs_f64();
                     if elapsed > 0.1 {
@@ -119,7 +121,8 @@ impl scan_bridge::ScanBridge {
 
         if is_finished {
             self.as_mut().set_is_scanning(false);
-            self.as_mut().set_progress_text(QString::from("Scan complete."));
+            self.as_mut()
+                .set_progress_text(QString::from("Scan complete."));
             self.as_mut().set_speed_text(QString::from(""));
             return;
         }
@@ -132,7 +135,7 @@ impl scan_bridge::ScanBridge {
             let speed = (files_diff as f64 / elapsed) as usize;
             let speed_str = format!("{} files/sec", speed);
             self.as_mut().set_speed_text(QString::from(&speed_str));
-            
+
             let mut rust_mut = self.as_mut().rust_mut();
             rust_mut.last_files_count = files;
             rust_mut.last_update_time = Some(now);
