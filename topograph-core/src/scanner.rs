@@ -165,7 +165,7 @@ pub fn build_tree_from_scan(rx: Receiver<ScanResult>) -> FileTree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, File};
+    use std::fs;
     use std::time::Instant;
     use tempfile::tempdir;
 
