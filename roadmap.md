@@ -45,8 +45,8 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
   - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
   - [ ] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
-  - [x] Handle `EACCES` (Permission Denied) gracefully, flagging nodes with an error state instead of crashing.
-  - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention.
+  - [x] Handle `EACCES` (Permission Denied) gracefully without crashing. *(2026-09-05 correction: failures silently zero the node's sizes; `NodeFlags` has no error bit yet, so "flagging with an error state" was aspirational.)*
+  - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention. *(2026-09-05 correction: no pool is configured; traversal uses jwalk's default (rayon) pool.)*
   - [x] Implement the bridging logic to stream scanned chunks back to the arena.
   - [x] Write a headless test harness running the scanner against a large system directory.
 
@@ -60,29 +60,29 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
   - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
   - [x] Write integration test verifying mount boundaries are strictly respected.
-  - [x] Surface deduplicated savings (bytes saved) in the final UI metrics.
+  - [ ] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
 
 - [x] Phase 4: **Atomic UI Integration (Lock-free Progress)**
   - [x] Implement `AtomicU64` counters for `total_bytes` and `AtomicUsize` for `total_files`.
   - [x] Implement an `AtomicBool` state tracker to identify scan completion without Qt Threading traits.
   - [x] Expose these atomic variables to CXX-Qt via a read-only Rust bridge method.
   - [x] Create a 60FPS QML `Timer` that polls the Rust bridge and updates UI text.
-  - [x] Calculate and display scan speed (e.g., "12,000 files/sec") via moving average.
+  - [x] Calculate and display scan speed (e.g., "12,000 files/sec"). *(2026-09-05 correction: a single-window delta rate, not a moving average.)*
   - [x] Ensure zero `Q_EMIT` signals are fired from worker threads to the UI to prevent event queue flooding.
   - [x] Build the minimal top-bar UI: "Scan Directory" button, path label, and progress text.
   - [x] Display an animated Kanagawa-styled indeterminate progress bar during scanning.
   - [x] Handle the "Scan Complete" signal transition to swap UI to the results view.
   - [x] Add a "Cancel" button that successfully halts the engine and resets the UI state.
 
-- [x] **Phase 5 (ListModel hookup):** Hook the tree into QML. Hook `FileTree` into QML as a standard `QAbstractListModel` so that `TreeView` / `ListView` can inspect the hierarchy.tory tree.
-  - [x] Map Qt roles (NameRole, SizeRole, PercentRole, IconRole) to Rust arena lookups.
-  - [x] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows.
-  - [x] Build the `TreeView` or `TableView` in QML with custom delegates for Kanagawa styling.
+- [x] **Phase 5 (ListModel hookup):** Hook the tree into QML. Hook `FileTree` into QML as a standard `QAbstractListModel` so that a `ListView` can inspect the hierarchy tree.
+  - [x] Map Qt roles to Rust arena lookups. *(2026-09-05 correction: the shipped role set is FileName/FileSize/FileCount/IsDirectory/Depth; PercentRole and IconRole were never mapped.)*
+  - [ ] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows. *(Unticked 2026-09-05: `load_tree` one-shots the root plus its direct children and nothing can open a directory; no expansion mechanism exists.)*
+  - [x] Build the tree view in QML with custom delegates for Kanagawa styling. *(2026-09-05 correction: what ships is a `ListView` placeholder, as the v0.2.1 notes themselves say; no `TreeView`/`TableView`.)*
   - [x] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB).
-  - [x] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column.
+  - [ ] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column. *(Unticked 2026-09-05: no percentage math or bar exists; PercentRole was never mapped.)*
   - [ ] Bind keyboard navigation (Up/Down/Left/Right) to expand/collapse folders.
   - [ ] Ensure scrolling performance remains at 60FPS even with 100,000 expanded nodes.
-  - [ ] Handle model invalidation/reset when a new scan completes.
+  - [x] Handle model invalidation/reset when a new scan completes. *(Ticked 2026-09-05: already shipped silently; the QML `Connections` block re-runs `loadTree` on scan completion, which resets the model.)*
   - [ ] Add sorting by Size (default), Name, or File Count.
 
 - [ ] Phase 6: **Aggregation Math (Size & Percentages)**

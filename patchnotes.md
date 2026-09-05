@@ -5,11 +5,19 @@
 **Hygiene release from the workspace audit's Stage 0 pass.** No behavior
 change.
 
-- Version drift closed: VERSION 0.2.3, both member manifests now 0.2.4, the
-  stale `Cargo.lock` regenerated. The dead GTK-era `[workspace.dependencies]`
-  (gtk4, cairo-rs, tokio — uninherited leftovers of the abandoned GUI
+- Version surfaces now agree at 0.2.4: the member manifests and the stale
+  `Cargo.lock` were regenerated in the release commit, and the `VERSION`
+  file, mistakenly left at 0.2.3 there, is corrected in this repair commit.
+  The dead GTK-era `[workspace.dependencies]`
+  (gtk4, cairo-rs, tokio; uninherited leftovers of the abandoned GUI
   framework) are removed, along with the decorative `[workspace.package]`
   version key.
+- The release commit failed the newly wired `clippy -D warnings` gate (an
+  unused test-only `File` import); the fix (`1ae0469`) rides in the tagged
+  tree. Roadmap ticks that the workspace audit found falsified (savings
+  metric, percentage bar, lazy expansion) are unticked with notes, the
+  silently shipped model invalidation is ticked, and the spec's `NodeId`
+  description now matches indextree's actual index type.
 - CI now runs `cargo fmt --check` and `cargo clippy -D warnings` beside the
   tests (the roadmap claimed this; it wasn't wired).
 - README corrected: the app is Qt6/QML via CXX-Qt, not GTK4, and the build

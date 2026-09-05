@@ -11,7 +11,7 @@ Topograph is a native application for visualizing file system usage. It serves a
 
 ## Memory Architecture
 Topograph uses a cache-friendly flat arena (backed by `indextree`) to model the file system graph. This prevents heap fragmentation and pointer-chasing associated with traditional C++ `shared_ptr` or `Box<Node>` trees.
-- `NodeId`: A lightweight 32-bit index into the contiguous arena.
+- `NodeId`: indextree's pointer-sized index (`NonZeroUsize`) plus a reuse stamp; not a 32-bit value.
 - `NodeData`: Compact payload containing names, allocated sizes, and metadata bitflags (`NodeFlags`).
 - **Concurrent Building**: The arena is populated safely by streaming node results from the multi-threaded file scanner.
 - **Aggregation**: Subtree sizing is aggregated post-order in $O(N)$ time with immense L1/L2 cache locality, completing in ~20ms for 1,000,000 nodes.
