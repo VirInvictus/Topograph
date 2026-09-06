@@ -123,20 +123,27 @@ ApplicationWindow {
                 delegate: Item {
                     width: treeView.width
                     height: 24
-                    
+
                     RowLayout {
                         anchors.fill: parent
-                        
+
                         // Indentation based on depth
                         Item {
                             Layout.preferredWidth: model.depth * 20
                         }
-                        
+
+                        Text {
+                            text: model.isDirectory ? (model.expanded ? "▾" : "▸") : ""
+                            color: "#8ea4a2" // Dragon Aqua
+                            font.pixelSize: 12
+                            Layout.preferredWidth: 14
+                        }
+
                         Text {
                             text: model.isDirectory ? "📁" : "📄"
                             font.pixelSize: 14
                         }
-                        
+
                         Text {
                             text: model.fileName
                             color: "#c5c9c5" // Dragon Foreground
@@ -144,7 +151,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
-                        
+
                         Text {
                             text: {
                                 let mb = model.fileSize / (1024 * 1024);
@@ -153,6 +160,14 @@ ApplicationWindow {
                             color: "#625e5a" // Dragon Muted
                             font.pixelSize: 14
                             horizontalAlignment: Text.AlignRight
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (model.isDirectory)
+                                model.expanded ? dirModel.collapseRow(index) : dirModel.expandRow(index)
                         }
                     }
                 }

@@ -1,7 +1,9 @@
 pub mod scanner;
 
+pub use indextree::NodeId;
+
 use bitflags::bitflags;
-use indextree::{Arena, NodeId};
+use indextree::Arena;
 
 bitflags! {
     /// Compact representation of file metadata and permissions.

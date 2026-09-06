@@ -76,7 +76,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 
 - [x] **Phase 5 (ListModel hookup):** Hook the tree into QML. Hook `FileTree` into QML as a standard `QAbstractListModel` so that a `ListView` can inspect the hierarchy tree.
   - [x] Map Qt roles to Rust arena lookups. *(2026-09-05 correction: the shipped role set is FileName/FileSize/FileCount/IsDirectory/Depth; PercentRole and IconRole were never mapped.)*
-  - [ ] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows. *(Unticked 2026-09-05: `load_tree` one-shots the root plus its direct children and nothing can open a directory; no expansion mechanism exists.)*
+  - [x] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows. *(Ticked 2026-09-06: model rows carry arena `NodeId`s; `expandRow`/`collapseRow` splice in or remove a row's direct children under a model reset, so only expanded levels exist as rows. Expansion state resets on each new scan via `loadTree`.)*
   - [x] Build the tree view in QML with custom delegates for Kanagawa styling. *(2026-09-05 correction: what ships is a `ListView` placeholder, as the v0.2.1 notes themselves say; no `TreeView`/`TableView`.)*
   - [x] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB).
   - [ ] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column. *(Unticked 2026-09-05: no percentage math or bar exists; PercentRole was never mapped.)*

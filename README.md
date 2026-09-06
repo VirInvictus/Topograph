@@ -14,6 +14,11 @@ cargo build --release
 The scanner core (`topograph-core`) is pure Rust with no Qt dependency; only
 the GUI shell links Qt6 via CXX-Qt.
 
+## Using
+
+Hit Scan on a directory and the tree lists its contents. Directories expand
+and collapse on click, so only the levels you open are materialized.
+
 ## License
 
 MIT
