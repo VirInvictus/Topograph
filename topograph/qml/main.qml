@@ -106,6 +106,66 @@ ApplicationWindow {
             }
         }
 
+        // Sort header
+        RowLayout {
+            Layout.fillWidth: true
+            visible: treeView.count > 0
+
+            Text {
+                text: "Sort"
+                color: "#625e5a" // Dragon Muted
+                font.pixelSize: 12
+            }
+
+            Button {
+                text: "Size"
+                onClicked: dirModel.sortBy("size", dirModel.sortKey === "size" ? !dirModel.sortDescending : true)
+                background: Rectangle {
+                    color: dirModel.sortKey === "size" ? "#282727" : "transparent" // Dragon Surface
+                    radius: 4
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: dirModel.sortKey === "size" ? "#8ea4a2" : "#625e5a" // Dragon Aqua vs Muted
+                    font.pixelSize: 12
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            Button {
+                text: "Name"
+                onClicked: dirModel.sortBy("name", dirModel.sortKey === "name" ? !dirModel.sortDescending : false)
+                background: Rectangle {
+                    color: dirModel.sortKey === "name" ? "#282727" : "transparent" // Dragon Surface
+                    radius: 4
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: dirModel.sortKey === "name" ? "#8ea4a2" : "#625e5a" // Dragon Aqua vs Muted
+                    font.pixelSize: 12
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            Button {
+                text: "Count"
+                onClicked: dirModel.sortBy("count", dirModel.sortKey === "count" ? !dirModel.sortDescending : false)
+                background: Rectangle {
+                    color: dirModel.sortKey === "count" ? "#282727" : "transparent" // Dragon Surface
+                    radius: 4
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: dirModel.sortKey === "count" ? "#8ea4a2" : "#625e5a" // Dragon Aqua vs Muted
+                    font.pixelSize: 12
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+        }
+
         // Content Area
         Rectangle {
             Layout.fillWidth: true

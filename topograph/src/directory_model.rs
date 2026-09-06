@@ -13,12 +13,17 @@ pub mod dir_model {
 
         include!("cxx-qt-lib/qmodelindex.h");
         type QModelIndex = cxx_qt_lib::QModelIndex;
+
+        include!("cxx-qt-lib/qstring.h");
+        type QString = cxx_qt_lib::QString;
     }
 
     unsafe extern "RustQt" {
         #[qobject]
         #[base = "QAbstractListModel"]
         #[qml_element]
+        #[qproperty(QString, sort_key)]
+        #[qproperty(bool, sort_descending)]
         type DirectoryModel = super::DirectoryModelRust;
 
         #[inherit]
@@ -70,14 +75,21 @@ pub mod dir_model {
         #[qinvokable]
         #[cxx_name = "collapseRow"]
         fn collapse_row(self: Pin<&mut DirectoryModel>, row: i32);
+
+        #[qinvokable]
+        #[cxx_name = "sortBy"]
+        fn sort_by(self: Pin<&mut DirectoryModel>, key: QString, descending: bool);
     }
 }
 
 use core::pin::Pin;
+use std::cmp::Ordering;
+
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QByteArray, QHash, QHashPair_i32_QByteArray, QModelIndex, QString, QVariant};
 use topograph_core::{FileTree, NodeFlags, NodeId};
 
+#[derive(Clone)]
 pub struct NodeDisplay {
     pub node_id: NodeId,
     pub file_name: String,
@@ -88,9 +100,33 @@ pub struct NodeDisplay {
     pub expanded: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SortKey {
+    Size,
+    Name,
+    Count,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SortState {
+    pub key: SortKey,
+    pub descending: bool,
+}
+
 pub struct DirectoryModelRust {
     pub(crate) items: Vec<NodeDisplay>,
+    pub(crate) sort_key: QString,
+    pub(crate) sort_descending: bool,
+}
+
+impl Default for DirectoryModelRust {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            sort_key: QString::from("size"),
+            sort_descending: true,
+        }
+    }
 }
 
 pub fn force_link() {
@@ -108,9 +144,37 @@ pub enum Roles {
     Expanded = 0x0105,
 }
 
+/// Maps a QML-facing sort key name onto its enum value.
+fn sort_key_from_qstring(key: &QString) -> Option<SortKey> {
+    match key.to_string().as_str() {
+        "size" => Some(SortKey::Size),
+        "name" => Some(SortKey::Name),
+        "count" => Some(SortKey::Count),
+        _ => None,
+    }
+}
+
+/// The sort currently configured on the model, as pure data.
+fn sort_state(rust: &DirectoryModelRust) -> SortState {
+    SortState {
+        key: sort_key_from_qstring(&rust.sort_key).unwrap_or(SortKey::Size),
+        descending: rust.sort_descending,
+    }
+}
+
+fn compare_rows(a: &NodeDisplay, b: &NodeDisplay, sort: SortState) -> Ordering {
+    let ord = match sort.key {
+        SortKey::Size => a.file_size.cmp(&b.file_size),
+        SortKey::Name => a.file_name.cmp(&b.file_name),
+        SortKey::Count => a.file_count.cmp(&b.file_count),
+    };
+    if sort.descending { ord.reverse() } else { ord }
+}
+
 /// Builds the display rows for the direct children of `parent`, one level deep.
-fn child_rows(tree: &FileTree, parent: NodeId, depth: u32) -> Vec<NodeDisplay> {
-    tree.get_children(parent)
+fn child_rows(tree: &FileTree, parent: NodeId, depth: u32, sort: SortState) -> Vec<NodeDisplay> {
+    let mut rows: Vec<NodeDisplay> = tree
+        .get_children(parent)
         .map(|node_id| {
             let data = tree
                 .get_data(node_id)
@@ -125,7 +189,9 @@ fn child_rows(tree: &FileTree, parent: NodeId, depth: u32) -> Vec<NodeDisplay> {
                 expanded: false,
             }
         })
-        .collect()
+        .collect();
+    sort_range(&mut rows, 0, sort);
+    rows
 }
 
 /// Flat end offset (exclusive) of the subtree rooted at `row`: every following
@@ -138,6 +204,37 @@ fn descendant_end(items: &[NodeDisplay], row: usize) -> usize {
         end += 1;
     }
     end
+}
+
+/// Sorts the sibling runs in `rows[start..]` by `sort`, moving each whole
+/// subtree block with its parent. `rows[start]` marks the run's depth; a run
+/// is partitioned into blocks that start on a row of that depth and extend
+/// over their deeper descendants, then each block's interior recurses.
+fn sort_range(rows: &mut Vec<NodeDisplay>, start: usize, sort: SortState) {
+    let end = rows.len();
+    if end - start < 2 {
+        return;
+    }
+    let depth = rows[start].depth;
+
+    let mut blocks: Vec<Vec<NodeDisplay>> = Vec::new();
+    let mut i = start;
+    while i < end {
+        let mut j = i + 1;
+        while j < end && rows[j].depth > depth {
+            j += 1;
+        }
+        blocks.push(rows[i..j].to_vec());
+        i = j;
+    }
+
+    blocks.sort_by(|a, b| compare_rows(&a[0], &b[0], sort));
+
+    for block in &mut blocks {
+        sort_range(block, 1, sort);
+    }
+
+    rows.splice(start..end, blocks.into_iter().flatten());
 }
 
 impl dir_model::DirectoryModel {
@@ -176,6 +273,7 @@ impl dir_model::DirectoryModel {
     }
 
     pub fn load_tree(mut self: Pin<&mut Self>) {
+        let sort = sort_state(self.rust());
         if let Ok(lock) = crate::bridge::LATEST_TREE.read()
             && let Some(tree) = lock.as_ref()
         {
@@ -192,7 +290,7 @@ impl dir_model::DirectoryModel {
                     depth: 0,
                     expanded: true,
                 });
-                new_items.extend(child_rows(tree, root_id, 1));
+                new_items.extend(child_rows(tree, root_id, 1, sort));
             }
 
             unsafe {
@@ -221,7 +319,7 @@ impl dir_model::DirectoryModel {
             // check rejects stale node ids instead of expanding a wrong node.
             Ok(lock) => match lock.as_ref() {
                 Some(tree) if tree.get_data(node_id).is_some_and(|d| *d.name == *name) => {
-                    child_rows(tree, node_id, child_depth)
+                    child_rows(tree, node_id, child_depth, sort_state(self.rust()))
                 }
                 _ => return,
             },
@@ -256,6 +354,28 @@ impl dir_model::DirectoryModel {
                 rust_mut.items[idx].expanded = false;
                 rust_mut.items.drain(idx + 1..end);
             }
+            self.as_mut().end_reset_model();
+        }
+    }
+
+    pub fn sort_by(mut self: Pin<&mut Self>, key: QString, descending: bool) {
+        let Some(sort_key) = sort_key_from_qstring(&key) else {
+            return;
+        };
+
+        {
+            let mut rust_mut = self.as_mut().rust_mut();
+            rust_mut.sort_key = key;
+            rust_mut.sort_descending = descending;
+            let sort = SortState {
+                key: sort_key,
+                descending,
+            };
+            sort_range(&mut rust_mut.items, 0, sort);
+        }
+
+        unsafe {
+            self.as_mut().begin_reset_model();
             self.as_mut().end_reset_model();
         }
     }
@@ -295,11 +415,11 @@ mod tests {
         (tree, root, a, a1, deep, b)
     }
 
-    fn row(node_id: NodeId, name: &str, depth: u32, is_directory: bool) -> NodeDisplay {
+    fn row(node_id: NodeId, name: &str, size: u64, depth: u32, is_directory: bool) -> NodeDisplay {
         NodeDisplay {
             node_id,
             file_name: name.to_string(),
-            file_size: 0,
+            file_size: size,
             file_count: 0,
             is_directory,
             depth,
@@ -310,7 +430,15 @@ mod tests {
     #[test]
     fn child_rows_lists_one_level() {
         let (tree, root, ..) = sample_tree();
-        let rows = child_rows(&tree, root, 1);
+        let rows = child_rows(
+            &tree,
+            root,
+            1,
+            SortState {
+                key: SortKey::Name,
+                descending: false,
+            },
+        );
 
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].file_name, "a");
@@ -329,16 +457,98 @@ mod tests {
         // is deeper than the row itself.
         let (_tree, root, a, a1, deep, b) = sample_tree();
         let rows = vec![
-            row(root, "root", 0, true),
-            row(a, "a", 1, true),
-            row(a1, "a-1", 2, true),
-            row(deep, "deep.txt", 3, false),
-            row(b, "b.txt", 1, false),
+            row(root, "root", 0, 0, true),
+            row(a, "a", 0, 1, true),
+            row(a1, "a-1", 0, 2, true),
+            row(deep, "deep.txt", 10, 3, false),
+            row(b, "b.txt", 5, 1, false),
         ];
 
         assert_eq!(descendant_end(&rows, 0), 5); // root owns all
         assert_eq!(descendant_end(&rows, 1), 4); // a owns a-1 and deep.txt
         assert_eq!(descendant_end(&rows, 2), 4); // a-1 owns deep.txt
         assert_eq!(descendant_end(&rows, 4), 5); // leaf owns nothing
+    }
+
+    #[test]
+    fn sort_range_orders_siblings_and_moves_subtrees() {
+        // The ids are opaque to sorting; names and sizes carry the scenario.
+        // Layout: root(0) big(1){big-inner(2)} small(1) mid(1){mid-inner(2)}.
+        let (_tree, root, a, a1, deep, b) = sample_tree();
+        let mut rows = vec![
+            row(root, "root", 0, 0, true),
+            row(a, "big", 30, 1, true),
+            row(a1, "big-inner", 1, 2, false),
+            row(deep, "small", 10, 1, false),
+            row(b, "mid", 20, 1, true),
+            row(b, "mid-inner", 2, 2, false),
+        ];
+
+        sort_range(
+            &mut rows,
+            0,
+            SortState {
+                key: SortKey::Size,
+                descending: true,
+            },
+        );
+
+        let names: Vec<&str> = rows.iter().map(|r| r.file_name.as_str()).collect();
+        // Size descending, and each inner row stays directly under its parent.
+        assert_eq!(
+            names,
+            ["root", "big", "big-inner", "mid", "mid-inner", "small"]
+        );
+    }
+
+    #[test]
+    fn sort_range_by_name_ascending() {
+        let (_tree, root, a, a1, deep, b) = sample_tree();
+        let mut rows = vec![
+            row(root, "root", 0, 0, true),
+            row(a, "zeta", 0, 1, true),
+            row(a1, "zeta-inner", 0, 2, false),
+            row(deep, "alpha", 0, 1, false),
+            row(b, "mid", 0, 1, false),
+        ];
+
+        sort_range(
+            &mut rows,
+            0,
+            SortState {
+                key: SortKey::Name,
+                descending: false,
+            },
+        );
+
+        let names: Vec<&str> = rows.iter().map(|r| r.file_name.as_str()).collect();
+        assert_eq!(names, ["root", "alpha", "mid", "zeta", "zeta-inner"]);
+    }
+
+    #[test]
+    fn sort_range_by_count_is_a_stable_noop_while_counts_are_zero() {
+        // FileCount is dead (always 0) until Phase 6 subtree counts exist;
+        // a stable sort must then leave the insertion order untouched.
+        let (_tree, root, a, a1, deep, b) = sample_tree();
+        let mut rows = vec![
+            row(root, "root", 0, 0, true),
+            row(a, "b-first", 0, 1, false),
+            row(a1, "a-second", 0, 1, false),
+            row(deep, "c-third", 0, 1, false),
+            row(b, "unused", 0, 1, false),
+        ];
+        let before: Vec<String> = rows.iter().map(|r| r.file_name.clone()).collect();
+
+        sort_range(
+            &mut rows,
+            0,
+            SortState {
+                key: SortKey::Count,
+                descending: true,
+            },
+        );
+
+        let after: Vec<String> = rows.iter().map(|r| r.file_name.clone()).collect();
+        assert_eq!(before, after);
     }
 }

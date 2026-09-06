@@ -19,6 +19,10 @@ Note: This project relies on Kanagawa Dragon for its styling. All rendering is G
   arena `NodeId`s. `expandRow`/`collapseRow` splice in or remove a row's direct
   children and publish with a full model reset, so only expanded levels exist
   as rows. A collapsed row owns every following row deeper than itself.
+- Sorting lives on the model: `sortBy(key, descending)` (QML header) reorders
+  each sibling run with `sort_range`, whole subtrees moving with their parents.
+  New children from `expandRow` inherit the active sort. Keys: size (default,
+  descending), name, count; count is a stable no-op while FileCount is dead.
 - `LATEST_TREE` (bridge.rs) is the shared scan-result slot. `loadTree` rebuilds
   from it and is keyed on the UI string `progressText === "Scan complete."`
   (main.qml): keep that string exact or replace the mechanism deliberately.

@@ -17,7 +17,8 @@ the GUI shell links Qt6 via CXX-Qt.
 ## Using
 
 Hit Scan on a directory and the tree lists its contents. Directories expand
-and collapse on click, so only the levels you open are materialized.
+and collapse on click, so only the levels you open are materialized, and the
+header sorts any level by size, name, or file count.
 
 ## License
 
