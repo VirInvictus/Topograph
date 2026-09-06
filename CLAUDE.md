@@ -29,6 +29,8 @@ Note: This project relies on Kanagawa Dragon for its styling. All rendering is G
 - `LATEST_TREE` (bridge.rs) is the shared scan-result slot. `loadTree` rebuilds
   from it and is keyed on the UI string `progressText === "Scan complete."`
   (main.qml): keep that string exact or replace the mechanism deliberately.
+  Publication is generation-guarded (`TREE_GENERATION` in bridge.rs): starting
+  or cancelling a scan invalidates the in-flight worker's late publish.
 - The `force_link()` stubs (bridge.rs, directory_model.rs) are load-bearing
   CXX-Qt 0.6 anti-stripping shims. Never delete them.
 - The FileCount role is always 0 until per-subtree counts exist (Phase 6).

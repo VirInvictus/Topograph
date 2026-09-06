@@ -84,6 +84,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [ ] Ensure scrolling performance remains at 60FPS even with 100,000 expanded nodes.
   - [x] Handle model invalidation/reset when a new scan completes. *(Ticked 2026-09-05: already shipped silently; the QML `Connections` block re-runs `loadTree` on scan completion, which resets the model.)*
   - [x] Add sorting by Size (default), Name, or File Count. *(Ticked 2026-09-06: a `sortBy(key, descending)` invokable plus a QML sort header; sibling runs reorder in place with their subtrees, and newly expanded children follow the active sort. Count sorting is a stable no-op until Phase 6 subtree counts make the FileCount role real.)*
+  - [x] Guard the shared tree slot against late publishes from cancelled scans (audit finding 2026-09-05). *(Ticked 2026-09-06: a scan-generation counter gates publication in `publish_tree`; starting or cancelling a scan invalidates the in-flight worker's publish, so a stale partial tree can no longer overwrite a newer scan's results.)*
 
 - [ ] Phase 6: **Aggregation Math (Size & Percentages)**
   - [ ] Implement a post-order traversal over the arena to sum sizes from leaves to the root.

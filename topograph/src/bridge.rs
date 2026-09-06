@@ -29,8 +29,14 @@ use core::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::QString;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use topograph_core::scanner::Scanner;
+
+/// Bumped whenever a scan starts or is cancelled. A scan's worker thread may
+/// finish building its tree long after that, so its captured generation is
+/// checked before publication: a cancelled scan that drains its channel late,
+/// or a superseded scan, must not overwrite the tree slot of a newer scan.
+static TREE_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Default)]
 pub struct ScanBridgeRust {
@@ -65,6 +71,7 @@ impl scan_bridge::ScanBridge {
         rust_mut.last_files_count = 0;
         rust_mut.last_update_time = Some(std::time::Instant::now());
 
+        let generation = TREE_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let rx = scanner.scan_dir(path.to_string());
 
         let metrics = scanner.metrics.clone();
@@ -72,15 +79,15 @@ impl scan_bridge::ScanBridge {
             let mut tree = topograph_core::scanner::build_tree_from_scan(rx);
             tree.aggregate_sizes();
 
-            if let Ok(mut lock) = LATEST_TREE.write() {
-                *lock = Some(tree);
-            }
+            publish_tree(generation, tree);
 
             metrics.is_finished.store(true, Ordering::Relaxed);
         });
     }
 
     pub fn cancel_scan(mut self: Pin<&mut Self>) {
+        // Invalidate the in-flight worker's publish along with stopping it.
+        TREE_GENERATION.fetch_add(1, Ordering::SeqCst);
         if let Some(scanner) = &self.rust().scanner {
             scanner.cancel();
         }
@@ -143,6 +150,62 @@ impl scan_bridge::ScanBridge {
     }
 }
 
+/// Publishes a fully built tree to the shared slot, unless a newer scan has
+/// started (or this one was cancelled) since it began. Returns whether the
+/// tree was published.
+fn publish_tree(generation: u64, tree: FileTree) -> bool {
+    if TREE_GENERATION.load(Ordering::SeqCst) != generation {
+        return false;
+    }
+    match LATEST_TREE.write() {
+        Ok(mut lock) => {
+            *lock = Some(tree);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 pub fn force_link() {
     let _ = scan_bridge::ScanBridge::start_scan as *const ();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use topograph_core::{NodeData, NodeFlags};
+
+    /// The tree slot and generation counter are process globals, so tests
+    /// that touch them serialize here.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn leaf_tree(name: &str) -> FileTree {
+        let mut tree = FileTree::new();
+        tree.set_root(NodeData::new(name, 1, 1, 0, NodeFlags::empty()));
+        tree
+    }
+
+    #[test]
+    fn stale_scan_tree_is_not_published() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        *LATEST_TREE.write().unwrap() = None;
+        let current = TREE_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+        let stale = current - 1;
+
+        // A cancelled or superseded scan finishing late must not publish.
+        assert!(!publish_tree(stale, leaf_tree("stale")));
+        assert!(LATEST_TREE.read().unwrap().is_none());
+
+        // The current generation publishes normally.
+        assert!(publish_tree(current, leaf_tree("fresh")));
+        {
+            let lock = LATEST_TREE.read().unwrap();
+            let tree = lock.as_ref().unwrap();
+            let root = tree.get_root().unwrap();
+            assert_eq!(tree.get_data(root).unwrap().name.as_ref(), "fresh");
+        }
+
+        *LATEST_TREE.write().unwrap() = None;
+    }
 }
