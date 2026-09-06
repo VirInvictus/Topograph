@@ -221,6 +221,30 @@ ApplicationWindow {
                             font.pixelSize: 14
                             horizontalAlignment: Text.AlignRight
                         }
+
+                        Rectangle {
+                            Layout.preferredWidth: 120
+                            Layout.preferredHeight: 6
+                            Layout.alignment: Qt.AlignVCenter
+                            color: "#282727" // Dragon Surface
+                            radius: 3
+                            clip: true
+
+                            Rectangle {
+                                width: parent.width * Math.min(model.percent, 100) / 100
+                                height: parent.height
+                                color: "#8ea4a2" // Dragon Aqua
+                                radius: 3
+                            }
+                        }
+
+                        Text {
+                            text: model.percent.toFixed(1) + "%"
+                            color: "#625e5a" // Dragon Muted
+                            font.pixelSize: 12
+                            horizontalAlignment: Text.AlignRight
+                            Layout.preferredWidth: 48
+                        }
                     }
 
                     MouseArea {

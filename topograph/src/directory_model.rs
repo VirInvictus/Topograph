@@ -98,6 +98,8 @@ pub struct NodeDisplay {
     pub is_directory: bool,
     pub depth: u32,
     pub expanded: bool,
+    /// This node's share of its parent's aggregated size, 0-100.
+    pub percent: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -142,6 +144,17 @@ pub enum Roles {
     IsDirectory = 0x0103,
     Depth = 0x0104,
     Expanded = 0x0105,
+    Percent = 0x0106,
+}
+
+/// A node's share of its parent's aggregated size, in percent. A zero parent
+/// (an empty directory) leaves every child at zero rather than dividing.
+fn percent_of(size: u64, parent_size: u64) -> f64 {
+    if parent_size == 0 {
+        0.0
+    } else {
+        (size as f64 / parent_size as f64) * 100.0
+    }
 }
 
 /// Maps a QML-facing sort key name onto its enum value.
@@ -173,6 +186,7 @@ fn compare_rows(a: &NodeDisplay, b: &NodeDisplay, sort: SortState) -> Ordering {
 
 /// Builds the display rows for the direct children of `parent`, one level deep.
 fn child_rows(tree: &FileTree, parent: NodeId, depth: u32, sort: SortState) -> Vec<NodeDisplay> {
+    let parent_size = tree.get_data(parent).map(|d| d.size).unwrap_or(0);
     let mut rows: Vec<NodeDisplay> = tree
         .get_children(parent)
         .map(|node_id| {
@@ -187,6 +201,7 @@ fn child_rows(tree: &FileTree, parent: NodeId, depth: u32, sort: SortState) -> V
                 is_directory: data.flags.contains(NodeFlags::IS_DIRECTORY),
                 depth,
                 expanded: false,
+                percent: percent_of(data.size, parent_size),
             }
         })
         .collect();
@@ -246,6 +261,7 @@ impl dir_model::DirectoryModel {
         roles.insert(Roles::IsDirectory as i32, QByteArray::from("isDirectory"));
         roles.insert(Roles::Depth as i32, QByteArray::from("depth"));
         roles.insert(Roles::Expanded as i32, QByteArray::from("expanded"));
+        roles.insert(Roles::Percent as i32, QByteArray::from("percent"));
         roles
     }
 
@@ -267,6 +283,8 @@ impl dir_model::DirectoryModel {
                 return QVariant::from(&(item.depth as i32));
             } else if role == Roles::Expanded as i32 {
                 return QVariant::from(&item.expanded);
+            } else if role == Roles::Percent as i32 {
+                return QVariant::from(&item.percent);
             }
         }
         QVariant::default()
@@ -289,6 +307,7 @@ impl dir_model::DirectoryModel {
                     is_directory: root_data.flags.contains(NodeFlags::IS_DIRECTORY),
                     depth: 0,
                     expanded: true,
+                    percent: 100.0,
                 });
                 new_items.extend(child_rows(tree, root_id, 1, sort));
             }
@@ -424,7 +443,40 @@ mod tests {
             is_directory,
             depth,
             expanded: false,
+            percent: 0.0,
         }
+    }
+
+    #[test]
+    fn percent_of_handles_math_and_zero_parents() {
+        assert_eq!(percent_of(25, 100), 25.0);
+        assert_eq!(percent_of(100, 100), 100.0);
+        assert_eq!(percent_of(0, 100), 0.0);
+        assert_eq!(percent_of(50, 0), 0.0); // empty parent: no division
+    }
+
+    #[test]
+    fn child_rows_compute_percent_against_the_parent() {
+        let (tree, root, ..) = sample_tree();
+        // Aggregation first, like the bridge does before publishing.
+        let mut tree = tree;
+        tree.aggregate_sizes();
+
+        let rows = child_rows(
+            &tree,
+            root,
+            1,
+            SortState {
+                key: SortKey::Name,
+                descending: false,
+            },
+        );
+
+        // The sample tree sums to 15 bytes: a/ holds 10, b.txt holds 5.
+        assert_eq!(rows[0].file_name, "a");
+        assert!((rows[0].percent - (10.0 / 15.0) * 100.0).abs() < 1e-9);
+        assert_eq!(rows[1].file_name, "b.txt");
+        assert!((rows[1].percent - (5.0 / 15.0) * 100.0).abs() < 1e-9);
     }
 
     #[test]

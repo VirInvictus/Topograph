@@ -79,7 +79,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows. *(Ticked 2026-09-06: model rows carry arena `NodeId`s; `expandRow`/`collapseRow` splice in or remove a row's direct children under a model reset, so only expanded levels exist as rows. Expansion state resets on each new scan via `loadTree`.)*
   - [x] Build the tree view in QML with custom delegates for Kanagawa styling. *(2026-09-05 correction: what ships is a `ListView` placeholder, as the v0.2.1 notes themselves say; no `TreeView`/`TableView`.)*
   - [x] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB).
-  - [ ] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column. *(Unticked 2026-09-05: no percentage math or bar exists; PercentRole was never mapped.)*
+  - [x] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column. *(Ticked 2026-09-06: a Percent role computed as the row's aggregate size over its parent's aggregate size, drawn as an inline Kanagawa-aqua bar with a numeric share beside the size text.)*
   - [ ] Bind keyboard navigation (Up/Down/Left/Right) to expand/collapse folders.
   - [ ] Ensure scrolling performance remains at 60FPS even with 100,000 expanded nodes.
   - [x] Handle model invalidation/reset when a new scan completes. *(Ticked 2026-09-05: already shipped silently; the QML `Connections` block re-runs `loadTree` on scan completion, which resets the model.)*

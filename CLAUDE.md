@@ -23,6 +23,9 @@ Note: This project relies on Kanagawa Dragon for its styling. All rendering is G
   each sibling run with `sort_range`, whole subtrees moving with their parents.
   New children from `expandRow` inherit the active sort. Keys: size (default,
   descending), name, count; count is a stable no-op while FileCount is dead.
+- The Percent role is the row's aggregate size over its parent's aggregate
+  size, computed at row-build time in the model (not stored in the arena);
+  the QML delegate draws it as an inline bar in the size column.
 - `LATEST_TREE` (bridge.rs) is the shared scan-result slot. `loadTree` rebuilds
   from it and is keyed on the UI string `progressText === "Scan complete."`
   (main.qml): keep that string exact or replace the mechanism deliberately.
