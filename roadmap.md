@@ -1,6 +1,6 @@
 # Topograph Roadmap
 
-The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`. Each phase defines strict, granular execution targets.
+The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organized as Phases 0 through 20 plus a post-1.0 TUI phase (23 groups today: the memory-architecture work is split across Phases 1a and 1b). Each phase defines strict, granular execution targets.
 
 - [x] Phase 0: **Project Skeleton & Qt Bindings**
   - [x] Initialize `topograph` and `topograph-core` Cargo workspaces.
@@ -13,11 +13,11 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Add `.gitignore` rules for CXX-Qt auto-generated C++ files.
   - [x] Create a dummy `Hello World` Qt6 Application Window.
   - [x] Verify clean build on local Linux environment (Wayland/X11 compatibility).
-  *(All ten ticked 2026-09-04: every item is verifiably in the tree — build.rs,
+  *(All ten ticked 2026-09-04: every item is verifiably in the tree: build.rs,
   main.qml, the Kanagawa palette in QML, the working bridge, fmt/clippy now
-  wired into CI, and target/CXX-Qt outputs gitignored. This Phase 0 copy had
-  been left unticked while the same work was ticked under Phase 1a; the
-  duplicates there are now the single source of truth.)*
+  wired into CI, and target/CXX-Qt outputs gitignored. Phase 1a repeats the
+  same skeleton items from the old double-Phase-1 layout; both lists describe
+  the same shipped work and both stay ticked.)*
 
 - [x] Phase 1a: **Memory Architecture (Cache-friendly Arena)**
   - [x] Select and integrate an arena library (e.g., `indextree` or contiguous `Vec<Node>`).
@@ -40,7 +40,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 
 - [x] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
   - [x] Integrate `jwalk` or `rayon` for concurrent directory walking.
-  - [ ] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code — traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
+  - [ ] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code; traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
   - [x] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
   - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
   - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
@@ -197,7 +197,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
 - [ ] Phase 15: **Subtree Caching (Instantaneous Rescans)**
   - [ ] Implement an in-memory cache architecture.
   - [ ] Scan request on a known subtree bypasses disk entirely and renders instantly (`Cache-hit a`).
-  - [ ] Scan request on a parent of an known tree reuses known branches and only scans missing paths (`Cache-hit b`).
+  - [ ] Scan request on a parent of a known tree reuses known branches and only scans missing paths (`Cache-hit b`).
   - [ ] Add a "Refresh" action that invalidates a specific `NodeId` and its children for a targeted disk rescan.
   - [ ] Seamlessly merge the targeted rescan results back into the global arena.
   - [ ] Recalculate aggregate sizes and geometry only for the affected branches.
