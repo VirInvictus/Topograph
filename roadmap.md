@@ -87,7 +87,7 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [x] Guard the shared tree slot against late publishes from cancelled scans (audit finding 2026-09-05). *(Ticked 2026-09-06: a scan-generation counter gates publication in `publish_tree`; starting or cancelling a scan invalidates the in-flight worker's publish, so a stale partial tree can no longer overwrite a newer scan's results.)*
 
 - [ ] Phase 6: **Aggregation Math (Size & Percentages)**
-  - [ ] Implement a post-order traversal over the arena to sum sizes from leaves to the root.
+  - [x] Implement a post-order traversal over the arena to sum sizes from leaves to the root. *(Ticked 2026-09-06: this shipped under Phase 1b as `aggregate_sizes`/`post_order_aggregate` in topograph-core and is called in production by the bridge before publishing; the Phase 6 copy duplicates that work and is ticked on that basis.)*
   - [ ] Calculate total allocated disk space vs apparent size.
   - [ ] Calculate maximum depth (`max_depth`) of the tree for rendering constraints.
   - [ ] Calculate `percentage = (child_size / parent_size) * 100.0` for every node.
@@ -95,8 +95,8 @@ The 20-phase master plan synthesized from `qdirstat`, `filelight`, and `baobab`.
   - [ ] Track total item counts (files + directories) per subtree.
   - [ ] Identify and flag the oldest and newest `mtime` in each subtree.
   - [ ] Store aggregated values cleanly back into the Arena nodes.
-  - [ ] Ensure aggregation completes in < 50ms for a 1-million node tree.
-  - [ ] Write regression tests verifying aggregation math against known hierarchical sizes.
+  - [x] Ensure aggregation completes in < 50ms for a 1-million node tree. *(Ticked 2026-09-06 with a caveat: the million-node test measures the aggregation and prints the duration log-only; the bound is deliberately not asserted because debug and CI machines vary. The 50ms figure is a release-build observation, not an enforced gate.)*
+  - [x] Write regression tests verifying aggregation math against known hierarchical sizes. *(Ticked 2026-09-06: the million-node test already asserted exact root sums and the hardlink test an exact deduped size; a dedicated known-hierarchy test now also checks intermediate directory sums and allocated sizes.)*
 
 - [ ] Phase 7: **Pseudo-nodes (`<Files>` and `<Ignored>`)**
   - [ ] Modify the aggregation pass to inject a `<Files>` pseudo-node under any directory containing both files and subdirectories.

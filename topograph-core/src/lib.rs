@@ -181,4 +181,73 @@ mod tests {
         // Assert speed (1M nodes should aggregate in < 50ms in release mode, maybe a bit more in debug)
         // We won't strictly panic on CI variance, but we log it.
     }
+
+    #[test]
+    fn test_aggregation_known_hierarchy() {
+        // root/
+        //   videos/            = (1000, 2000)
+        //     big.mkv          = (900, 1800)
+        //     small.mkv        = (100, 200)
+        //   docs/              = (100, 260)
+        //     nested/          = (30, 120)
+        //       a.txt          = (10, 40)
+        //       b.txt          = (20, 80)
+        //     notes.txt        = (70, 140)
+        let mut tree = FileTree::new();
+        let root = tree.set_root(NodeData::new("root", 0, 0, 0, NodeFlags::IS_DIRECTORY));
+        let videos = tree.add_child(
+            root,
+            NodeData::new("videos", 0, 0, 0, NodeFlags::IS_DIRECTORY),
+        );
+        tree.add_child(
+            videos,
+            NodeData::new("big.mkv", 900, 1800, 0, NodeFlags::empty()),
+        );
+        tree.add_child(
+            videos,
+            NodeData::new("small.mkv", 100, 200, 0, NodeFlags::empty()),
+        );
+
+        let docs = tree.add_child(
+            root,
+            NodeData::new("docs", 0, 0, 0, NodeFlags::IS_DIRECTORY),
+        );
+        let nested = tree.add_child(
+            docs,
+            NodeData::new("nested", 0, 0, 0, NodeFlags::IS_DIRECTORY),
+        );
+        tree.add_child(
+            nested,
+            NodeData::new("a.txt", 10, 40, 0, NodeFlags::empty()),
+        );
+        tree.add_child(
+            nested,
+            NodeData::new("b.txt", 20, 80, 0, NodeFlags::empty()),
+        );
+        tree.add_child(
+            docs,
+            NodeData::new("notes.txt", 70, 140, 0, NodeFlags::empty()),
+        );
+
+        tree.aggregate_sizes();
+
+        // Intermediate directories carry the sum of everything below them,
+        // apparent size and allocated size alike.
+        let nested_data = tree.get_data(nested).unwrap();
+        assert_eq!(nested_data.size, 30);
+        assert_eq!(nested_data.allocated_size, 120);
+        let docs_data = tree.get_data(docs).unwrap();
+        assert_eq!(docs_data.size, 100);
+        assert_eq!(docs_data.allocated_size, 260);
+        let videos_data = tree.get_data(videos).unwrap();
+        assert_eq!(videos_data.size, 1000);
+        assert_eq!(videos_data.allocated_size, 2000);
+        // The root carries the whole hierarchy.
+        let root_data = tree.get_data(root).unwrap();
+        assert_eq!(root_data.size, 1100);
+        assert_eq!(root_data.allocated_size, 2260);
+        // Leaves keep their own sizes; they contributed them upward unchanged.
+        let big = tree.get_children(videos).next().unwrap();
+        assert_eq!(tree.get_data(big).unwrap().size, 900);
+    }
 }
