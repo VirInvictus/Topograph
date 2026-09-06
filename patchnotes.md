@@ -1,5 +1,35 @@
 # Patch Notes
 
+## v0.3.0 (2026-09-06)
+
+**First feature release since the hygiene pass: the tree view becomes a
+real tree.**
+
+- Lazy expansion: directory rows expand and collapse in place. Model rows
+  carry arena node IDs, so `expandRow`/`collapseRow` splice in or remove
+  a row's direct children and only expanded levels exist as UI rows. A
+  stale-click name check rejects node ids left over from a republished
+  tree.
+- Sorting: Size (default, descending), Name, and Count keys via a
+  `sortBy` invokable and a Kanagawa sort header. Sibling runs reorder in
+  place with their subtrees, newly expanded children follow the active
+  sort, and Count is a stable no-op while the FileCount role stays dead
+  until Phase 6 subtree counts exist.
+- Inline percentage bars: a Percent role (row aggregate size over parent
+  aggregate size) drawn as a Kanagawa-aqua bar with the numeric share in
+  the size column.
+- Cancel race closed: the shared tree slot is generation-guarded, so a
+  cancelled or superseded scan finishing late can no longer overwrite a
+  newer scan's tree (audit finding; regression test included).
+- Phase 6 honesty pass: boxes duplicating already-shipped work are ticked
+  with dated notes, and a known-hierarchy aggregation test now covers
+  intermediate directory sums in topograph-core (12 tests total, 8 of
+  them new since v0.2.4; the GUI crate carries its first tests).
+- Docs: patchnotes structure repaired (stray second H1, doubled v0.2.3
+  prefix, mixed heading styles, missing dates), roadmap header count
+  corrected to 23 groups, Phase 0 note untangled, "an known tree" typo
+  fixed, and the em-dash the prose rule forbids removed.
+
 ## v0.2.4 (2026-09-04)
 
 **Hygiene release from the workspace audit's Stage 0 pass.** No behavior
