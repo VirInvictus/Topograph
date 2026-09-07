@@ -22,6 +22,9 @@ pub mod scan_bridge {
 
         #[qinvokable]
         fn update_metrics(self: Pin<&mut ScanBridge>);
+
+        #[qsignal]
+        fn scan_finished(self: Pin<&mut ScanBridge>);
     }
 }
 
@@ -131,6 +134,10 @@ impl scan_bridge::ScanBridge {
             self.as_mut()
                 .set_progress_text(QString::from("Scan complete."));
             self.as_mut().set_speed_text(QString::from(""));
+            // Emitted after the properties settle: the old string-keyed QML
+            // refresh read progressText inside onIsScanningChanged, which
+            // always fired one write too early and never reloaded the model.
+            self.as_mut().scan_finished();
             return;
         }
 

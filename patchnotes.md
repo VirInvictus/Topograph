@@ -21,6 +21,12 @@ real tree.**
 - Cancel race closed: the shared tree slot is generation-guarded, so a
   cancelled or superseded scan finishing late can no longer overwrite a
   newer scan's tree (audit finding; regression test included).
+- Model refresh repaired: the string-keyed QML check
+  (`progressText === "Scan complete."` inside `onIsScanningChanged`)
+  never fired because the bridge wrote `is_scanning` before the text.
+  The bridge now emits a `scanFinished` signal on completion and QML
+  reloads the model from it; found and verified with a live run of the
+  app.
 - Phase 6 honesty pass: boxes duplicating already-shipped work are ticked
   with dated notes, and a known-hierarchy aggregation test now covers
   intermediate directory sums in topograph-core (12 tests total, 8 of

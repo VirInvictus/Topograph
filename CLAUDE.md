@@ -27,8 +27,10 @@ Note: This project relies on Kanagawa Dragon for its styling. All rendering is G
   size, computed at row-build time in the model (not stored in the arena);
   the QML delegate draws it as an inline bar in the size column.
 - `LATEST_TREE` (bridge.rs) is the shared scan-result slot. `loadTree` rebuilds
-  from it and is keyed on the UI string `progressText === "Scan complete."`
-  (main.qml): keep that string exact or replace the mechanism deliberately.
+  from it when the bridge emits `scanFinished` (from `update_metrics` once the
+  worker reports completion). The old mechanism keyed on the UI string
+  `progressText === "Scan complete."` and never fired: `is_scanning` flipped
+  before the text was written, so the handler always read the stale value.
   Publication is generation-guarded (`TREE_GENERATION` in bridge.rs): starting
   or cancelling a scan invalidates the in-flight worker's late publish.
 - The `force_link()` stubs (bridge.rs, directory_model.rs) are load-bearing

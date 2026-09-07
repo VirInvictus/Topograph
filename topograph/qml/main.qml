@@ -273,10 +273,8 @@ ApplicationWindow {
 
     Connections {
         target: bridge
-        function onIsScanningChanged() {
-            if (!bridge.isScanning && bridge.progressText === "Scan complete.") {
-                dirModel.loadTree()
-            }
+        function onScanFinished() {
+            dirModel.loadTree()
         }
     }
 }
