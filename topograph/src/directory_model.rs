@@ -382,10 +382,13 @@ impl dir_model::DirectoryModel {
             return;
         };
 
+        // The generated setters, not bare field writes: only the setters
+        // emit the NOTIFY signals the QML sort header binds against.
+        self.as_mut().set_sort_key(key);
+        self.as_mut().set_sort_descending(descending);
+
         {
             let mut rust_mut = self.as_mut().rust_mut();
-            rust_mut.sort_key = key;
-            rust_mut.sort_descending = descending;
             let sort = SortState {
                 key: sort_key,
                 descending,
