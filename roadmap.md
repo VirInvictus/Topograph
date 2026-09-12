@@ -1,6 +1,7 @@
 # Topograph Roadmap
 
 The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organized as Phases 0 through 20 plus a post-1.0 TUI phase (23 groups today: the memory-architecture work is split across Phases 1a and 1b). Each phase defines strict, granular execution targets.
+  *(MARKED ASPIRATIONAL 2026-09-12 (Brandon): Phases 6-20 plus the TUI are aspirational scope, honestly labelled; the shipped v0.3.0 is the product, and any single phase can be pulled forward later as its own decision.)*
 
 - [x] Phase 0: **Project Skeleton & Qt Bindings**
   - [x] Initialize `topograph` and `topograph-core` Cargo workspaces.
@@ -40,11 +41,13 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
 
 - [x] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
   - [x] Integrate `jwalk` or `rayon` for concurrent directory walking.
-  - [ ] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code; traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
+  - [x] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code; traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
+    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; traversal stays jwalk.)*
   - [x] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
   - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
   - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
-  - [ ] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
+  - [x] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
+    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; a rotational-drive micro-optimization on an SSD-only house.)*
   - [x] Handle `EACCES` (Permission Denied) gracefully without crashing. *(2026-09-05 correction: failures silently zero the node's sizes; `NodeFlags` has no error bit yet, so "flagging with an error state" was aspirational.)*
   - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention. *(2026-09-05 correction: no pool is configured; traversal uses jwalk's default (rayon) pool.)*
   - [x] Implement the bridging logic to stream scanned chunks back to the arena.
@@ -60,7 +63,8 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
   - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
   - [x] Write integration test verifying mount boundaries are strictly respected.
-  - [ ] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
+  - [x] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
+    *(RETIRED 2026-09-12 (Brandon): declined for now; the metric needs Phase 6 counts and can be pulled forward as its own decision.)*
 
 - [x] Phase 4: **Atomic UI Integration (Lock-free Progress)**
   - [x] Implement `AtomicU64` counters for `total_bytes` and `AtomicUsize` for `total_files`.
