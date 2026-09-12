@@ -42,16 +42,16 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
 - [x] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
   - [x] Integrate `jwalk` or `rayon` for concurrent directory walking.
   - [x] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code; traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
-    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; traversal stays jwalk.)*
   - [x] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
   - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
   - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
   - [x] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
-    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; a rotational-drive micro-optimization on an SSD-only house.)*
   - [x] Handle `EACCES` (Permission Denied) gracefully without crashing. *(2026-09-05 correction: failures silently zero the node's sizes; `NodeFlags` has no error bit yet, so "flagging with an error state" was aspirational.)*
   - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention. *(2026-09-05 correction: no pool is configured; traversal uses jwalk's default (rayon) pool.)*
   - [x] Implement the bridging logic to stream scanned chunks back to the arena.
   - [x] Write a headless test harness running the scanner against a large system directory.
+    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; a rotational-drive micro-optimization on an SSD-only house.)*
+    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; traversal stays jwalk.)*
 
 - [x] Phase 3: **Deduplication & File System Boundaries**
   - [x] Parse `/proc/mounts` at startup to build a list of external mounts (Solved via `st_dev` boundary checking).
