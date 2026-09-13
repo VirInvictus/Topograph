@@ -2,7 +2,7 @@
 
 ## Topograph
 
-A blazing fast file system visualizer.
+A fast, local-first file system size explorer; the treemap visualization is planned.
 
 **Language:** Rust 2024
 **Framework:** Qt6 / QML (via CXX-Qt)
@@ -11,7 +11,7 @@ A blazing fast file system visualizer.
 - Run: `cargo run -p topograph`
 - Tests: `cargo test`
 
-Note: This project relies on Kanagawa Dragon for its styling. All rendering is GPU-accelerated and strictly separated from the Rust core. No libadwaita or GTK logic exists here anymore.
+Note: This project relies on Kanagawa Dragon for its styling. What ships today is a plain QML ListView over the Rust core; the GPU-shader rendering phases (treemap, sunburst) are aspirational scope, marked as such at roadmap.md:4, not shipped. No libadwaita or GTK logic exists here anymore.
 
 ## Model notes
 
@@ -35,4 +35,15 @@ Note: This project relies on Kanagawa Dragon for its styling. All rendering is G
   or cancelling a scan invalidates the in-flight worker's late publish.
 - The `force_link()` stubs (bridge.rs, directory_model.rs) are load-bearing
   CXX-Qt 0.6 anti-stripping shims. Never delete them.
-- The FileCount role is always 0 until per-subtree counts exist (Phase 6).
+- Keyboard navigation is QML-side (main.qml): the ListView holds focus and draws a
+  highlight; Up/Down are its built-in navigation, Left/Right call
+  `collapseRow`/`expandRow` on the current row. Every expand, collapse, and sort
+  publishes a full model reset, which clears `currentIndex`, so each QML wrapper
+  snapshots the current row's name+depth before the call and re-finds it after
+  (an `itemAtIndex` scan outward from the old index over the instantiated
+  delegates), falling back to the old index when the operation removed the row
+  (collapsing a directory while a descendant is selected selects the collapsed
+  parent). Row clicks and scan completion hand focus to the tree so the arrow
+  keys work immediately.
+- The FileCount role is always 0 until per-subtree counts exist (Phase 6 is
+  aspirational scope; see roadmap.md:4).
