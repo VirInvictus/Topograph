@@ -41,17 +41,17 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
 
 - [x] Phase 2: **Concurrent Scanning Engine (Parallel Traversal)**
   - [x] Integrate `jwalk` or `rayon` for concurrent directory walking.
-  - [x] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code; traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
+  - [ ] Implement POSIX-specific traversal using `rustix` `openat` and `fstatat`. *(Unticked 2026-09-04: the audit found no rustix/openat code; traversal is jwalk and metadata reads are std. Either implement or retire; it was falsely ticked.)*
+    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; traversal stays jwalk.)*
   - [x] Force `AT_SYMLINK_NOFOLLOW` on all stat calls to prevent symlink loops.
   - [x] Implement an `AtomicBool` cancellation token for aborting active scans.
   - [x] Read `d_type` directly from directory entries to avoid redundant `stat` calls for directories.
-  - [x] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
+  - [ ] Sort directories by inode number before traversing to minimize disk head seeks (rotational drive optimization). *(Unticked 2026-09-04: no inode-sorting code exists in the scanner.)*
+    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; a rotational-drive micro-optimization on an SSD-only house.)*
+    - [x] Implement the bridging logic to stream scanned chunks back to the arena.
   - [x] Handle `EACCES` (Permission Denied) gracefully without crashing. *(2026-09-05 correction: failures silently zero the node's sizes; `NodeFlags` has no error bit yet, so "flagging with an error state" was aspirational.)*
   - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention. *(2026-09-05 correction: no pool is configured; traversal uses jwalk's default (rayon) pool.)*
-  - [x] Implement the bridging logic to stream scanned chunks back to the arena.
   - [x] Write a headless test harness running the scanner against a large system directory.
-    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; a rotational-drive micro-optimization on an SSD-only house.)*
-    *(RETIRED 2026-09-12 (Brandon): declined, not shipped; traversal stays jwalk.)*
 
 - [x] Phase 3: **Deduplication & File System Boundaries**
   - [x] Parse `/proc/mounts` at startup to build a list of external mounts (Solved via `st_dev` boundary checking).
@@ -63,7 +63,7 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
   - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
   - [x] Write integration test verifying mount boundaries are strictly respected.
-  - [x] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
+  - [ ] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
     *(RETIRED 2026-09-12 (Brandon): declined for now; the metric needs Phase 6 counts and can be pulled forward as its own decision.)*
 
 - [x] Phase 4: **Atomic UI Integration (Lock-free Progress)**
@@ -282,3 +282,31 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [ ] Ensure graceful fallback if the terminal does not support truecolor.
   - [ ] Add CLI arguments (`--tui`) to launch directly into the terminal mode instead of Qt.
   - [ ] Write documentation for the TUI mode in `README.md`.
+
+## New findings 2026-09-12 (six-lens full audit; detail: audit/FULL-AUDIT-2026-09-12.md, Wave 25)
+
+- [ ] **Two pre-existing falsified ticks surfaced by the audit (untick
+      with dated notes, matching the v0.2.4 precedent):** roadmap.md:65
+      claims an integration test for mount boundaries (the st_dev pruning
+      has zero test coverage) and roadmap.md:85 claims B/KB/MB/GB/TB
+      formatting (the only formatter always prints MB). Fix: untick with
+      notes, or ship the ~10-line tiered formatter.
+- [ ] **The retired boxes now render honestly** (unticked with RETIRED
+      notes adjacent - repaired 2026-09-12 after tonight's retirement
+      commit initially ticked them; the notes' placement is now adjacent
+      to their boxes).
+- [ ] **Blitz candidates:** the keyboard-nav lane (~60 lines of QML:
+      focus + highlight + left/right expand/collapse; the real work is
+      preserving the current row across the full model resets); the
+      patchnotes rider (tonight's aspirational marking + retirements have
+      no entry); optional bounded riders: Phase 6 subtree counts (completes
+      the dead Count header, ~40 lines) or the tiered formatter.
+- [ ] **Docs:** CLAUDE.md predates tonight's decisions ("all rendering is
+      GPU-accelerated" is now aspirational; Phase 6 cited without the
+      flag); README's "visualizer analogous to qdirstat" overpromises
+      (tree explorer today, treemap planned).
+- [ ] **GitHub presentation (workspace batch):** zero Releases (cut
+      v0.3.0 from patchnotes); malformed topic qt6--qml-cxx-qt (proposed
+      set: rust/qt6/qml/cxx-qt/filesystem/disk-usage/linux/kanagawa);
+      description replacement (drops "blazing fast", says treemap
+      planned).
