@@ -119,7 +119,7 @@ ApplicationWindow {
 
             Button {
                 text: "Size"
-                onClicked: dirModel.sortBy("size", dirModel.sortKey === "size" ? !dirModel.sortDescending : true)
+                onClicked: treeView.sortPreserving("size", dirModel.sortKey === "size" ? !dirModel.sortDescending : true)
                 background: Rectangle {
                     color: dirModel.sortKey === "size" ? "#282727" : "transparent" // Dragon Surface
                     radius: 4
@@ -135,7 +135,7 @@ ApplicationWindow {
 
             Button {
                 text: "Name"
-                onClicked: dirModel.sortBy("name", dirModel.sortKey === "name" ? !dirModel.sortDescending : false)
+                onClicked: treeView.sortPreserving("name", dirModel.sortKey === "name" ? !dirModel.sortDescending : false)
                 background: Rectangle {
                     color: dirModel.sortKey === "name" ? "#282727" : "transparent" // Dragon Surface
                     radius: 4
@@ -151,7 +151,7 @@ ApplicationWindow {
 
             Button {
                 text: "Count"
-                onClicked: dirModel.sortBy("count", dirModel.sortKey === "count" ? !dirModel.sortDescending : false)
+                onClicked: treeView.sortPreserving("count", dirModel.sortKey === "count" ? !dirModel.sortDescending : false)
                 background: Rectangle {
                     color: dirModel.sortKey === "count" ? "#282727" : "transparent" // Dragon Surface
                     radius: 4
@@ -179,8 +179,85 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 8
                 model: dirModel
-                
+                focus: true
+                highlightMoveDuration: 0
+                highlight: Rectangle {
+                    color: "#282727" // Dragon Surface
+                    radius: 4
+                }
+
+                // Identity of the current row, carried across the full model
+                // resets that expandRow/collapseRow/sortBy publish (every one
+                // of them clears currentIndex).
+                property int restoreIndex: -1
+                property string restoreName: ""
+                property int restoreDepth: -1
+
+                function preserveCurrent() {
+                    restoreIndex = currentIndex
+                    restoreName = currentItem ? currentItem.rowName : ""
+                    restoreDepth = currentItem ? currentItem.rowDepth : -1
+                }
+
+                // Re-finds the preserved row by name+depth, scanning outward
+                // from its old index. Delegates only exist for the viewport
+                // neighbourhood, so a row the operation moved out of that
+                // window falls back to sitting at the old index position.
+                function findRow(name, depth, hint) {
+                    const reach = 120
+                    for (let offset = 0; offset <= reach; offset++) {
+                        let candidate = hint - offset
+                        if (candidate >= 0) {
+                            let item = itemAtIndex(candidate)
+                            if (item && item.rowName === name && item.rowDepth === depth)
+                                return candidate
+                        }
+                        candidate = hint + offset
+                        if (offset > 0 && candidate < count) {
+                            let item = itemAtIndex(candidate)
+                            if (item && item.rowName === name && item.rowDepth === depth)
+                                return candidate
+                        }
+                    }
+                    return -1
+                }
+
+                function restoreCurrent() {
+                    if (restoreIndex < 0 || count === 0)
+                        return
+                    forceLayout()
+                    let row = findRow(restoreName, restoreDepth, restoreIndex)
+                    if (row < 0)
+                        row = Math.min(restoreIndex, count - 1)
+                    currentIndex = row
+                    positionViewAtIndex(row, ListView.Contain)
+                    forceActiveFocus()
+                }
+
+                function expandPreserving(row) {
+                    preserveCurrent()
+                    dirModel.expandRow(row)
+                    restoreCurrent()
+                }
+
+                function collapsePreserving(row) {
+                    preserveCurrent()
+                    dirModel.collapseRow(row)
+                    restoreCurrent()
+                }
+
+                function sortPreserving(key, descending) {
+                    preserveCurrent()
+                    dirModel.sortBy(key, descending)
+                    restoreCurrent()
+                }
+
+                Keys.onLeftPressed: if (currentIndex >= 0) collapsePreserving(currentIndex)
+                Keys.onRightPressed: if (currentIndex >= 0) expandPreserving(currentIndex)
+
                 delegate: Item {
+                    property string rowName: model.fileName
+                    property int rowDepth: model.depth
                     width: treeView.width
                     height: 24
 
@@ -250,8 +327,14 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            if (model.isDirectory)
-                                model.expanded ? dirModel.collapseRow(index) : dirModel.expandRow(index)
+                            treeView.forceActiveFocus()
+                            treeView.currentIndex = index
+                            if (model.isDirectory) {
+                                if (model.expanded)
+                                    treeView.collapsePreserving(index)
+                                else
+                                    treeView.expandPreserving(index)
+                            }
                         }
                     }
                 }
@@ -275,6 +358,7 @@ ApplicationWindow {
         target: bridge
         function onScanFinished() {
             dirModel.loadTree()
+            treeView.forceActiveFocus()
         }
     }
 }
