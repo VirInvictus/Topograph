@@ -62,7 +62,7 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [x] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested.
   - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
   - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
-  - [x] Write integration test verifying mount boundaries are strictly respected.
+  - [ ] Write integration test verifying mount boundaries are strictly respected. *(Unticked 2026-09-13: the six-lens audit found this test never existed; the st_dev pruning in scanner.rs has zero test coverage. The scanner's walk/prune behavior is separately verified correct and untouched.)*
   - [ ] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
     *(RETIRED 2026-09-12 (Brandon): declined for now; the metric needs Phase 6 counts and can be pulled forward as its own decision.)*
 
@@ -82,9 +82,9 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [x] Map Qt roles to Rust arena lookups. *(2026-09-05 correction: the shipped role set is FileName/FileSize/FileCount/IsDirectory/Depth; PercentRole and IconRole were never mapped.)*
   - [x] Implement lazy loading/expansion in the model to avoid instantiating millions of UI rows. *(Ticked 2026-09-06: model rows carry arena `NodeId`s; `expandRow`/`collapseRow` splice in or remove a row's direct children under a model reset, so only expanded levels exist as rows. Expansion state resets on each new scan via `loadTree`.)*
   - [x] Build the tree view in QML with custom delegates for Kanagawa styling. *(2026-09-05 correction: what ships is a `ListView` placeholder, as the v0.2.1 notes themselves say; no `TreeView`/`TableView`.)*
-  - [x] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB).
+  - [ ] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB). *(Unticked 2026-09-13: the audit found the only formatter always prints MB (the QML delegate divides by 1 MB and appends "MB"); the claim was never true. The tiered formatter is a ~10-line pull-forward if wanted.)*
   - [x] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column. *(Ticked 2026-09-06: a Percent role computed as the row's aggregate size over its parent's aggregate size, drawn as an inline Kanagawa-aqua bar with a numeric share beside the size text.)*
-  - [ ] Bind keyboard navigation (Up/Down/Left/Right) to expand/collapse folders.
+  - [x] Bind keyboard navigation (Up/Down/Left/Right) to expand/collapse folders. *(Ticked 2026-09-13, v0.3.1: QML-side only, zero model changes. The ListView takes focus with a Kanagawa highlight; Up/Down are its built-in navigation; Left/Right call collapseRow/expandRow. Every expand/collapse/sort restores the selection across the full model reset by re-finding the row's snapshotted name+depth, with an index fallback when the operation removed the row (collapse with a descendant selected selects the collapsed parent). Row clicks and scan completion hand focus to the tree. Verified by driving the live app with synthetic key input.)*
   - [ ] Ensure scrolling performance remains at 60FPS even with 100,000 expanded nodes.
   - [x] Handle model invalidation/reset when a new scan completes. *(Ticked 2026-09-05, mechanism replaced 2026-09-06: the refresh originally keyed on the QML string `progressText === "Scan complete."`, but the bridge writes `is_scanning` before the text, so the handler always read a stale value and the model never reloaded. `update_metrics` now emits a `scanFinished` signal after the properties settle, and QML reloads on that.)*
   - [x] Add sorting by Size (default), Name, or File Count. *(Ticked 2026-09-06: a `sortBy(key, descending)` invokable plus a QML sort header; sibling runs reorder in place with their subtrees, and newly expanded children follow the active sort. Count sorting is a stable no-op until Phase 6 subtree counts make the FileCount role real.)*
@@ -285,28 +285,39 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
 
 ## New findings 2026-09-12 (six-lens full audit; detail: audit/FULL-AUDIT-2026-09-12.md, Wave 25)
 
-- [ ] **Two pre-existing falsified ticks surfaced by the audit (untick
+- [x] **Two pre-existing falsified ticks surfaced by the audit (untick
       with dated notes, matching the v0.2.4 precedent):** roadmap.md:65
       claims an integration test for mount boundaries (the st_dev pruning
       has zero test coverage) and roadmap.md:85 claims B/KB/MB/GB/TB
       formatting (the only formatter always prints MB). Fix: untick with
       notes, or ship the ~10-line tiered formatter.
+      *(Done 2026-09-13, v0.3.1: both unticked with dated notes; the
+      tiered-formatter alternative stays open as a pull-forward.)*
 - [ ] **The retired boxes now render honestly** (unticked with RETIRED
       notes adjacent - repaired 2026-09-12 after tonight's retirement
       commit initially ticked them; the notes' placement is now adjacent
       to their boxes).
-- [ ] **Blitz candidates:** the keyboard-nav lane (~60 lines of QML:
+- [x] **Blitz candidates:** the keyboard-nav lane (~60 lines of QML:
       focus + highlight + left/right expand/collapse; the real work is
       preserving the current row across the full model resets); the
       patchnotes rider (tonight's aspirational marking + retirements have
       no entry); optional bounded riders: Phase 6 subtree counts (completes
       the dead Count header, ~40 lines) or the tiered formatter.
-- [ ] **Docs:** CLAUDE.md predates tonight's decisions ("all rendering is
+      *(Keyboard nav + the rider shipped 2026-09-13 in v0.3.1, verified
+      live; the Phase 6 counts and tiered-formatter riders remain
+      optional pull-forwards.)*
+- [x] **Docs:** CLAUDE.md predates tonight's decisions ("all rendering is
       GPU-accelerated" is now aspirational; Phase 6 cited without the
       flag); README's "visualizer analogous to qdirstat" overpromises
       (tree explorer today, treemap planned).
+      *(Fixed 2026-09-13, v0.3.1: CLAUDE.md and README repositioned.)*
 - [ ] **GitHub presentation (workspace batch):** zero Releases (cut
       v0.3.0 from patchnotes); malformed topic qt6--qml-cxx-qt (proposed
       set: rust/qt6/qml/cxx-qt/filesystem/disk-usage/linux/kanagawa);
       description replacement (drops "blazing fast", says treemap
       planned).
+- [ ] **Dependency aging (noted 2026-09-13, no action taken):** CI's
+      install-qt-action@v3 has a v4 line and the Qt 6.6.0 pin is aging;
+      cxx-qt 0.6.1 has a 0.7.x line (API churn, no urgency); dashmap
+      5.5 has a 6.x line. All are routine modernizations for a future
+      maintenance pass, not defects.

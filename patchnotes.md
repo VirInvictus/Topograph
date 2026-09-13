@@ -1,5 +1,39 @@
 # Patch Notes
 
+## v0.3.1 (2026-09-13)
+
+**Keyboard navigation, plus the record repairs from the 2026-09-12
+decision session.**
+
+- Keyboard navigation: the tree takes focus and shows a Kanagawa
+  highlight on the current row. Up/Down move the selection (the
+  ListView's built-in navigation), Left collapses and Right expands the
+  selected directory, and the selection now survives every expand,
+  collapse, and sort: the row's name and depth are snapshotted before
+  the model reset and re-found afterwards, falling back to the row's
+  old index when the operation removed it (collapsing a directory while
+  a descendant is selected selects the collapsed parent). Row clicks
+  and scan completion hand focus to the tree so the arrow keys work
+  immediately. Verified by driving the live app with synthetic key
+  input.
+- Patchnotes rider for 2026-09-12: the aspirational marking of Phases
+  6-20 + TUI and the retirement of the rustix, inode-sorting, and
+  dedup-savings verdicts were recorded in the roadmap that evening but
+  never announced; this entry is their record.
+- Roadmap honesty from the six-lens audit: the mount-boundary
+  integration test never existed (the st_dev pruning has no test
+  coverage) and the only size formatter always prints MB, so both
+  falsified ticks are unticked with dated notes. The tiered formatter
+  remains available as a small pull-forward.
+- Docs repositioned: CLAUDE.md no longer claims all rendering is
+  GPU-accelerated (the shader phases are aspirational) and cites the
+  aspirational flag alongside Phase 6; README now describes a size
+  explorer with the treemap planned instead of a qdirstat-analogous
+  visualizer.
+- Scope notes recorded without action: CI's install-qt-action@v3 and
+  the Qt 6.6.0 pin are aging, cxx-qt 0.6 has a 0.7.x line with API
+  churn, and dashmap 5.5 has a 6.x line.
+
 ## v0.3.0 (2026-09-06)
 
 **First feature release since the hygiene pass: the tree view becomes a
