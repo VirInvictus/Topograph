@@ -311,11 +311,16 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
       flag); README's "visualizer analogous to qdirstat" overpromises
       (tree explorer today, treemap planned).
       *(Fixed 2026-09-13, v0.3.1: CLAUDE.md and README repositioned.)*
-- [ ] **GitHub presentation (workspace batch):** zero Releases (cut
+- [x] **GitHub presentation (workspace batch):** zero Releases (cut
       v0.3.0 from patchnotes); malformed topic qt6--qml-cxx-qt (proposed
       set: rust/qt6/qml/cxx-qt/filesystem/disk-usage/linux/kanagawa);
       description replacement (drops "blazing fast", says treemap
       planned).
+      *(Done 2026-09-15: Releases cut for all three tags with
+      --notes-from-tag (v0.3.1 Latest); the drafted topic set applied;
+      the description now reads "A native Qt6/QML file system size
+      explorer for Linux, built in Rust and styled with Kanagawa Dragon.
+      The treemap visualization is planned but not built yet.")*
 - [ ] **Dependency aging (noted 2026-09-13, no action taken):** CI's
       install-qt-action@v3 has a v4 line and the Qt 6.6.0 pin is aging;
       cxx-qt 0.6.1 has a 0.7.x line (API churn, no urgency); dashmap
@@ -326,7 +331,8 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
 
 Eight lenses + slop-reader at v0.3.1 (c331364). Tally after dedup: 1 HIGH / 6 MEDIUM / ~30 LOW + 13 feature proposals. The v0.3.1 honesty pass verifies as real (falsified ticks unticked with accurate notes, README/CLAUDE repositioned, keyboard nav wired as documented; no-em-dash rule mechanically true at zero hits). NEW findings LOGGED, never executed:
 
-- [ ] [HIGH] GitHub presentation batch still open (the recorded box above): cut Releases for all three tags (`--notes-from-tag`), fix topic qt6--qml-cxx-qt, apply the drafted description.
+- [x] [HIGH] GitHub presentation batch still open (the recorded box above): cut Releases for all three tags (`--notes-from-tag`), fix topic qt6--qml-cxx-qt, apply the drafted description.
+      *(Done 2026-09-15: all three Releases cut, topic set replaced, description applied; see the recorded box above.)*
 - [ ] [MEDIUM] Failed-scan-root error path: an unreadable/nonexistent root publishes an empty tree as "Scan complete" and wipes the displayed tree; no error channel exists (scanner.rs:58-59, bridge.rs:132-141). Add an error flag to ScanMetrics or guard the empty-root publish.
 - [ ] [MEDIUM] Dated correction notes still owed on two boxes the 09-13 pass skipped: the cross-fs "opt-in toggle" (roadmap.md:62; `cross_filesystems` is a field no code can set) and the "large system directory" harness (roadmap.md:54; it scans the crate's own src/). Same class: roadmap.md:57 /proc/mounts (solved via st_dev, but no dated note), and roadmap.md:296-299 (done repair recorded in an unticked box; tick it).
 - [ ] [MEDIUM] README.md:21 sells Count sort as working (stable no-op, FileCount hardcoded 0); add the caveat or drop "or file count". Companion truth fixes: the collapse-fallback mechanism is misdocumented (the click handler's index reassignment produces the outcome, not the removal fallback; patchnotes.md:13-15, roadmap.md:87, CLAUDE.md:44-46), and patchnotes.md:66-67 says 8 new tests since v0.2.4 when it is 9.
