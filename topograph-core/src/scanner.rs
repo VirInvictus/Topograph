@@ -2,7 +2,7 @@ use crate::{FileTree, NodeData, NodeFlags};
 use crossbeam_channel::{Receiver, bounded};
 use dashmap::DashSet;
 use indextree::NodeId;
-use jwalk::WalkDir;
+use jwalk::WalkDirGeneric;
 use std::collections::HashMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -20,6 +20,9 @@ pub struct ScanMetrics {
     pub total_files: AtomicUsize,
     pub total_bytes: AtomicU64,
     pub is_finished: AtomicBool,
+    /// The scan failed (root missing or unreadable): the bridge surfaces it
+    /// as an error instead of publishing an empty tree as success.
+    pub failed: AtomicBool,
 }
 
 pub struct Scanner {
@@ -31,6 +34,34 @@ pub struct Scanner {
 impl Default for Scanner {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Per-entry stat results, captured once in `process_read_dir` so the main
+/// loop never re-stats: jwalk does not cache metadata between calls, and a
+/// second lstat per entry halves metadata throughput.
+#[derive(Clone, Copy, Default, Debug)]
+struct EntryMeta {
+    ok: bool,
+    dev: u64,
+    ino: u64,
+    nlink: u64,
+    size: u64,
+    allocated: u64,
+    mtime: i64,
+}
+
+impl EntryMeta {
+    fn from_metadata(metadata: &std::fs::Metadata) -> Self {
+        EntryMeta {
+            ok: true,
+            dev: metadata.dev(),
+            ino: metadata.ino(),
+            nlink: metadata.nlink(),
+            size: metadata.len(),
+            allocated: metadata.blocks() * 512,
+            mtime: metadata.mtime(),
+        }
     }
 }
 
@@ -55,36 +86,51 @@ impl Scanner {
         let metrics = self.metrics.clone();
 
         std::thread::spawn(move || {
-            let root_metadata = std::fs::symlink_metadata(&root_path).ok();
-            let root_dev = root_metadata.map(|m| m.dev()).unwrap_or(0);
+            // A root that cannot be stat'ed (nonexistent, or its parent
+            // unreadable) is a failed scan, not an empty one.
+            let Ok(root_metadata) = std::fs::symlink_metadata(&root_path) else {
+                metrics.failed.store(true, Ordering::Relaxed);
+                return;
+            };
+            let root_dev = root_metadata.dev();
 
             // DashSet tracks (dev, inode) for fast-path O(1) hardlink deduplication across threads
             let seen_inodes = Arc::new(DashSet::<(u64, u64)>::new());
 
-            let walker = WalkDir::new(&root_path)
+            let walker = WalkDirGeneric::<((), EntryMeta)>::new(&root_path)
                 .skip_hidden(false)
                 .process_read_dir(move |_depth, _path, _state, children| {
+                    // One lstat per entry here, stashed into client_state for
+                    // the main loop (jwalk does not cache metadata between
+                    // calls). Any stat error keeps the entry; its sizes zero
+                    // out below.
+                    for dir_entry in children.iter_mut().flatten() {
+                        if let Ok(metadata) = dir_entry.metadata() {
+                            dir_entry.client_state = EntryMeta::from_metadata(&metadata);
+                        }
+                    }
                     if !cross_fs && root_dev != 0 {
-                        // Dynamically prune directories that cross into another filesystem
-                        // (e.g. /proc, /sys, or mounted drives)
-                        children.retain(|dir_entry_result| {
-                            if let Ok(dir_entry) = dir_entry_result
-                                && let Ok(metadata) = dir_entry.metadata()
-                                && metadata.dev() != root_dev
-                            {
-                                return false; // Skip traversing this branch
+                        // Dynamically prune directories that cross into another
+                        // filesystem (e.g. /proc, /sys, or mounted drives),
+                        // deciding on the stashed dev.
+                        children.retain(|dir_entry_result| match dir_entry_result {
+                            Ok(dir_entry) => {
+                                let meta = dir_entry.client_state;
+                                !meta.ok || meta.dev == root_dev
                             }
-                            true
+                            Err(_) => true,
                         });
                     }
                 });
 
+            let mut saw_entry = false;
             for entry in walker {
                 if cancel_token.load(Ordering::Relaxed) {
                     break;
                 }
 
                 if let Ok(dir_entry) = entry {
+                    saw_entry = true;
                     let path = dir_entry.path();
                     let parent_path = path.parent().map(|p| p.to_path_buf());
 
@@ -96,28 +142,28 @@ impl Scanner {
                         flags.insert(NodeFlags::IS_SYMLINK);
                     }
 
-                    // Metadata fetch handles POSIX stat, falling back cleanly on EACCES
-                    let (size, allocated_size, mtime) = if let Ok(metadata) = dir_entry.metadata() {
-                        let dev = metadata.dev();
-                        let inode = metadata.ino();
-                        let nlink = metadata.nlink();
-                        let mut s = metadata.len();
-                        let mut alloc = metadata.blocks() * 512;
-
-                        // Fast-path hardlink deduplication:
-                        // We only care about checking the concurrent HashSet if st_nlink > 1
-                        if !file_type.is_dir() && nlink > 1 {
-                            // If insert returns false, the (dev, ino) is already known!
-                            if !seen_inodes.insert((dev, inode)) {
-                                s = 0;
-                                alloc = 0;
-                                flags.insert(NodeFlags::IS_HARDLINK_DUPE);
-                            }
-                        }
-
-                        (s, alloc, metadata.mtime())
+                    // The stash from process_read_dir covers everything but
+                    // the root entry (which never passes through that
+                    // closure); the fallback re-stats just those. Any stat
+                    // error silently zeroes the entry's sizes.
+                    let meta = dir_entry.client_state;
+                    let meta = if meta.ok {
+                        meta
                     } else {
-                        (0, 0, 0)
+                        dir_entry
+                            .metadata()
+                            .map(|m| EntryMeta::from_metadata(&m))
+                            .unwrap_or_default()
+                    };
+
+                    let (size, allocated_size, mtime) = if !file_type.is_dir() && meta.ok && meta.nlink > 1
+                            // If insert returns false, the (dev, ino) is already known!
+                            && !seen_inodes.insert((meta.dev, meta.ino))
+                    {
+                        flags.insert(NodeFlags::IS_HARDLINK_DUPE);
+                        (0, 0, meta.mtime)
+                    } else {
+                        (meta.size, meta.allocated, meta.mtime)
                     };
 
                     let name = dir_entry.file_name().to_string_lossy().to_string();
@@ -136,12 +182,25 @@ impl Scanner {
                     }
                 }
             }
+
+            // A root that stats but yields nothing could not be read (EACCES
+            // on the root itself); an existing empty directory still yields
+            // its own entry. Cancelled scans break out early and must not
+            // report failure.
+            if !saw_entry && !cancel_token.load(Ordering::Relaxed) {
+                metrics.failed.store(true, Ordering::Relaxed);
+            }
         });
 
         rx
     }
 }
 
+/// Builds the arena from a scan stream. Relies on jwalk's strict pre-order
+/// DFS: a parent is always yielded before its children, so `path_to_node`
+/// already holds the directory id every child needs when it arrives. An
+/// entry whose parent never appeared adopts as a fresh root (in practice
+/// only the scan root itself, whose parent lies outside the scan).
 pub fn build_tree_from_scan(rx: Receiver<ScanResult>) -> FileTree {
     let mut tree = FileTree::new();
     let mut path_to_node: HashMap<PathBuf, NodeId> = HashMap::new();
@@ -204,5 +263,40 @@ mod tests {
         // Even though there are two 1024-byte files, because of hardlink dedup,
         // the size should exactly equal 1024.
         assert_eq!(root_data.size, 1024);
+    }
+
+    #[test]
+    fn test_failed_root_sets_the_error_flag() {
+        let dir = tempdir().unwrap();
+        let missing = dir.path().join("does-not-exist");
+
+        let scanner = Scanner::new();
+        let metrics = scanner.metrics.clone();
+        let rx = scanner.scan_dir(&missing);
+        // Draining the channel waits for the worker to finish; the send end
+        // closes when the failed-scan early return drops it.
+        let results: Vec<ScanResult> = rx.iter().collect();
+
+        assert!(metrics.failed.load(Ordering::Relaxed));
+        assert!(results.is_empty());
+        // An empty tree with no root: the bridge must not publish this over
+        // a previously displayed tree.
+        let tree = build_tree_from_scan(rx);
+        assert!(tree.get_root().is_none());
+    }
+
+    #[test]
+    fn test_empty_directory_is_not_a_failure() {
+        let dir = tempdir().unwrap();
+
+        let scanner = Scanner::new();
+        let metrics = scanner.metrics.clone();
+        let rx = scanner.scan_dir(dir.path());
+        let mut tree = build_tree_from_scan(rx);
+        tree.aggregate_sizes();
+
+        assert!(!metrics.failed.load(Ordering::Relaxed));
+        // The directory's own entry still yields, so the tree has a root.
+        assert!(tree.get_root().is_some());
     }
 }
