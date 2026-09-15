@@ -7,7 +7,7 @@ ApplicationWindow {
     visible: true
     width: 1024
     height: 768
-    title: "Topograph"
+    title: bridge.currentPath === "" ? "Topograph" : "Topograph: " + bridge.currentPath
     color: "#181616" // Kanagawa Dragon Background
 
     ScanBridge {
@@ -32,13 +32,15 @@ ApplicationWindow {
                 id: pathInput
                 Layout.fillWidth: true
                 text: "/"
+                // Launch-argument seed: `topograph /some/path` starts the
+                // field there (a one-time write, so the binding is free).
+                Component.onCompleted: if (bridge.initialPath !== "") text = bridge.initialPath
                 color: "#c5c9c5" // Dragon Foreground
                 background: Rectangle {
                     color: "#282727" // Dragon Surface
                     radius: 4
                 }
             }
-
             Button {
                 text: bridge.isScanning ? "Cancel" : "Scan"
                 onClicked: {
@@ -290,10 +292,15 @@ ApplicationWindow {
                         }
 
                         Text {
-                            text: {
-                                let mb = model.fileSize / (1024 * 1024);
-                                return mb.toFixed(2) + " MB";
-                            }
+                            text: model.isDirectory ? model.fileCount : ""
+                            color: "#625e5a" // Dragon Muted
+                            font.pixelSize: 14
+                            horizontalAlignment: Text.AlignRight
+                            Layout.preferredWidth: 56
+                        }
+
+                        Text {
+                            text: dirModel.formatSize(model.fileSize)
                             color: "#625e5a" // Dragon Muted
                             font.pixelSize: 14
                             horizontalAlignment: Text.AlignRight

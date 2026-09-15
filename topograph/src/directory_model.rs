@@ -79,6 +79,10 @@ pub mod dir_model {
         #[qinvokable]
         #[cxx_name = "sortBy"]
         fn sort_by(self: Pin<&mut DirectoryModel>, key: QString, descending: bool);
+
+        #[qinvokable]
+        #[cxx_name = "formatSize"]
+        fn format_size(self: &DirectoryModel, bytes: i64) -> QString;
     }
 }
 
@@ -178,10 +182,52 @@ fn sort_state(rust: &DirectoryModelRust) -> SortState {
 fn compare_rows(a: &NodeDisplay, b: &NodeDisplay, sort: SortState) -> Ordering {
     let ord = match sort.key {
         SortKey::Size => a.file_size.cmp(&b.file_size),
-        SortKey::Name => a.file_name.cmp(&b.file_name),
+        SortKey::Name => natural_cmp(&a.file_name, &b.file_name),
         SortKey::Count => a.file_count.cmp(&b.file_count),
     };
     if sort.descending { ord.reverse() } else { ord }
+}
+
+/// Natural order for file names: letter runs compare case-insensitively and
+/// digit runs by numeric value, so "Z" sorts beside "a" instead of before
+/// it and "file10" lands after "file9". Case-and-length ties fall back to
+/// byte order to stay deterministic.
+fn natural_cmp(a: &str, b: &str) -> Ordering {
+    let mut a = a;
+    let mut b = b;
+    while !a.is_empty() && !b.is_empty() {
+        let (a_chunk, a_rest) = split_chunk(a);
+        let (b_chunk, b_rest) = split_chunk(b);
+        let ord = match (a_chunk.parse::<u64>(), b_chunk.parse::<u64>()) {
+            (Ok(x), Ok(y)) => x.cmp(&y).then_with(|| a_chunk.len().cmp(&b_chunk.len())),
+            // Mixed classes (digit run vs letter run) or a digit run too
+            // long for u64: character order decides.
+            _ => cmp_chunk(a_chunk, b_chunk),
+        };
+        if ord != Ordering::Equal {
+            return ord;
+        }
+        a = a_rest;
+        b = b_rest;
+    }
+    a.len().cmp(&b.len())
+}
+
+/// Case-insensitive chunk compare, falling back to byte order on ties.
+fn cmp_chunk(x: &str, y: &str) -> Ordering {
+    fn lower(s: &str) -> impl Iterator<Item = char> + '_ {
+        s.chars().flat_map(char::to_lowercase)
+    }
+    lower(x).cmp(lower(y)).then_with(|| x.cmp(y))
+}
+
+/// Splits off the leading run of digits (or the leading run of non-digits).
+fn split_chunk(s: &str) -> (&str, &str) {
+    let digit = s.as_bytes()[0].is_ascii_digit();
+    let end = s
+        .find(|c: char| c.is_ascii_digit() != digit)
+        .unwrap_or(s.len());
+    s.split_at(end)
 }
 
 /// Builds the display rows for the direct children of `parent`, one level deep.
@@ -197,7 +243,7 @@ fn child_rows(tree: &FileTree, parent: NodeId, depth: u32, sort: SortState) -> V
                 node_id,
                 file_name: data.name.to_string(),
                 file_size: data.size,
-                file_count: 0,
+                file_count: data.count,
                 is_directory: data.flags.contains(NodeFlags::IS_DIRECTORY),
                 depth,
                 expanded: false,
@@ -303,7 +349,7 @@ impl dir_model::DirectoryModel {
                     node_id: root_id,
                     file_name: root_data.name.to_string(),
                     file_size: root_data.size,
-                    file_count: 0,
+                    file_count: root_data.count,
                     is_directory: root_data.flags.contains(NodeFlags::IS_DIRECTORY),
                     depth: 0,
                     expanded: true,
@@ -387,19 +433,24 @@ impl dir_model::DirectoryModel {
         self.as_mut().set_sort_key(key);
         self.as_mut().set_sort_descending(descending);
 
-        {
-            let mut rust_mut = self.as_mut().rust_mut();
-            let sort = SortState {
-                key: sort_key,
-                descending,
-            };
-            sort_range(&mut rust_mut.items, 0, sort);
-        }
-
+        // Reorder inside the reset pair, like every other mutation: views
+        // must never observe items mid-rearrangement.
         unsafe {
             self.as_mut().begin_reset_model();
+            {
+                let mut rust_mut = self.as_mut().rust_mut();
+                let sort = SortState {
+                    key: sort_key,
+                    descending,
+                };
+                sort_range(&mut rust_mut.items, 0, sort);
+            }
             self.as_mut().end_reset_model();
         }
+    }
+
+    pub fn format_size(&self, bytes: i64) -> QString {
+        QString::from(&crate::bridge::format_size(bytes.max(0) as u64))
     }
 }
 
@@ -581,18 +632,20 @@ mod tests {
     }
 
     #[test]
-    fn sort_range_by_count_is_a_stable_noop_while_counts_are_zero() {
-        // FileCount is dead (always 0) until Phase 6 subtree counts exist;
-        // a stable sort must then leave the insertion order untouched.
+    fn sort_range_by_count_orders_siblings_and_keeps_ties_stable() {
+        // ids are opaque to sorting; the counts carry the scenario (they
+        // come from aggregate_sizes in production and are data here).
         let (_tree, root, a, a1, deep, b) = sample_tree();
         let mut rows = vec![
             row(root, "root", 0, 0, true),
-            row(a, "b-first", 0, 1, false),
-            row(a1, "a-second", 0, 1, false),
-            row(deep, "c-third", 0, 1, false),
-            row(b, "unused", 0, 1, false),
+            row(a, "quiet", 0, 1, true),
+            row(a1, "quiet-inner", 0, 2, false),
+            row(deep, "busy", 0, 1, true),
+            row(b, "mid", 0, 1, false),
         ];
-        let before: Vec<String> = rows.iter().map(|r| r.file_name.clone()).collect();
+        rows[1].file_count = 4;
+        rows[3].file_count = 9;
+        rows[4].file_count = 4;
 
         sort_range(
             &mut rows,
@@ -603,7 +656,21 @@ mod tests {
             },
         );
 
-        let after: Vec<String> = rows.iter().map(|r| r.file_name.clone()).collect();
-        assert_eq!(before, after);
+        let names: Vec<&str> = rows.iter().map(|r| r.file_name.as_str()).collect();
+        // Count descending; the equal-count tie keeps insertion order and
+        // the quiet directory keeps its inner row.
+        assert_eq!(names, ["root", "busy", "quiet", "quiet-inner", "mid"]);
+    }
+
+    #[test]
+    fn natural_order_sorts_digit_runs_and_case_like_a_human() {
+        assert_eq!(natural_cmp("file1", "file10"), Ordering::Less);
+        assert_eq!(natural_cmp("file10", "file9"), Ordering::Greater);
+        assert_eq!(natural_cmp("file2", "file10"), Ordering::Less);
+        assert_eq!(natural_cmp("Zeta", "alpha"), Ordering::Greater);
+        assert_eq!(natural_cmp("a2", "a10"), Ordering::Less);
+        // Case-insensitively equal strings fall back to byte order.
+        assert_eq!(natural_cmp("equal", "EQUAL"), Ordering::Greater);
+        assert_eq!(natural_cmp("same", "same"), Ordering::Equal);
     }
 }

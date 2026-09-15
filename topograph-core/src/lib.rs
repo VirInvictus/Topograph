@@ -1,3 +1,7 @@
+//! topograph-core: the headless scanner and arena behind Topograph.
+//! Pure Rust, no Qt: it walks directories and models the resulting tree;
+//! the GUI crate consumes it over the CXX-Qt bridge.
+
 pub mod scanner;
 
 pub use indextree::NodeId;
@@ -6,13 +10,13 @@ use bitflags::bitflags;
 use indextree::Arena;
 
 bitflags! {
-    /// Compact representation of file metadata and permissions.
+    /// Compact representation of file metadata flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct NodeFlags: u16 {
         const IS_DIRECTORY = 0b0000_0001;
         const IS_SYMLINK   = 0b0000_0010;
-        const IS_HIDDEN    = 0b0000_0100;
-        const IS_PSEUDO    = 0b0000_1000; // E.g., <Files> or <Ignored> group nodes
+        const IS_HIDDEN    = 0b0000_0100; // Phase 17 scaffold: never set or read yet
+        const IS_PSEUDO    = 0b0000_1000; // Phase 7 scaffold (<Files>/<Ignored>): the aggregation arm reads it, nothing sets it yet
         const IS_HARDLINK_DUPE = 0b0001_0000;
     }
 }
@@ -22,8 +26,15 @@ bitflags! {
 pub struct NodeData {
     pub name: Box<str>,
     pub size: u64,
+    /// Apparent vs allocated: captured at scan time, aggregated in post-order,
+    /// but not surfaced in the GUI yet (the Phase 6 apparent-vs-allocated box).
     pub allocated_size: u64,
+    /// Captured at scan time (the only cheap moment); nothing reads it yet
+    /// (the Phase 6 oldest/newest-mtime box).
     pub mtime: i64,
+    /// Items (files + directories) in this subtree; leaves carry 1.
+    /// Written by `aggregate_sizes`, zero before it runs.
+    pub count: usize,
     pub flags: NodeFlags,
 }
 
@@ -34,6 +45,7 @@ impl NodeData {
             size,
             allocated_size,
             mtime,
+            count: 0,
             flags,
         }
     }
@@ -94,19 +106,20 @@ impl FileTree {
         }
     }
 
-    fn post_order_aggregate(&mut self, node: NodeId) -> (u64, u64) {
+    fn post_order_aggregate(&mut self, node: NodeId) -> (u64, u64, usize) {
         let mut total_size = 0;
         let mut total_allocated = 0;
+        let mut total_count = 0;
 
-        // Collect children first to appease the borrow checker during mutation.
-        // In a real tree, caching this or avoiding allocation might be needed for huge directories,
-        // but `indextree` makes this pattern relatively cheap.
+        // Collect children first to appease the borrow checker during
+        // mutation; indextree makes the pattern relatively cheap.
         let children: Vec<NodeId> = node.children(&self.arena).collect();
 
         for child in children {
-            let (child_size, child_alloc) = self.post_order_aggregate(child);
+            let (child_size, child_alloc, child_count) = self.post_order_aggregate(child);
             total_size += child_size;
             total_allocated += child_alloc;
+            total_count += child_count;
         }
 
         if let Some(data) = self.arena.get_mut(node).map(|n| n.get_mut()) {
@@ -114,19 +127,25 @@ impl FileTree {
                 || data.flags.contains(NodeFlags::IS_PSEUDO)
             {
                 // Directories adopt the accumulated size of their children
+                // and count themselves as one item among those children.
                 data.size = total_size;
                 data.allocated_size = total_allocated;
+                data.count = total_count + 1;
+                total_count += 1;
             } else {
-                // Leaves simply contribute their own size
+                // Leaves simply contribute their own size and count as one
+                data.count = 1;
                 total_size += data.size;
                 total_allocated += data.allocated_size;
+                total_count += data.count;
             }
         }
 
-        (total_size, total_allocated)
+        (total_size, total_allocated, total_count)
     }
 
     /// Removes a node and all of its descendants from the arena, freeing the memory for reuse.
+    /// Phase 14/15 scaffold (drill-down rescans): zero callers today.
     pub fn remove_subtree(&mut self, node: NodeId) {
         node.remove_subtree(&mut self.arena);
     }
@@ -178,8 +197,8 @@ mod tests {
         assert_eq!(root_data.size, 1_000_000 * 1024);
         assert_eq!(root_data.allocated_size, 1_000_000 * 4096);
 
-        // Assert speed (1M nodes should aggregate in < 50ms in release mode, maybe a bit more in debug)
-        // We won't strictly panic on CI variance, but we log it.
+        // Speed is logged, not asserted: debug builds and CI machines vary.
+        // Release builds observed < 50ms for this shape.
     }
 
     #[test]
@@ -242,12 +261,18 @@ mod tests {
         let videos_data = tree.get_data(videos).unwrap();
         assert_eq!(videos_data.size, 1000);
         assert_eq!(videos_data.allocated_size, 2000);
-        // The root carries the whole hierarchy.
+        // The root carries the whole hierarchy (7 files + 2 directories).
         let root_data = tree.get_data(root).unwrap();
         assert_eq!(root_data.size, 1100);
         assert_eq!(root_data.allocated_size, 2260);
-        // Leaves keep their own sizes; they contributed them upward unchanged.
+        assert_eq!(root_data.count, 9);
+        // Directory counts include the directory itself...
+        assert_eq!(tree.get_data(docs).unwrap().count, 5);
+        assert_eq!(tree.get_data(nested).unwrap().count, 3);
+        assert_eq!(tree.get_data(videos).unwrap().count, 3);
+        // ...and each leaf counts as one.
         let big = tree.get_children(videos).next().unwrap();
         assert_eq!(tree.get_data(big).unwrap().size, 900);
+        assert_eq!(tree.get_data(big).unwrap().count, 1);
     }
 }

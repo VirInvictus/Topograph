@@ -7,7 +7,9 @@ fn main() {
     // Prevent linker from stripping modules by referencing them
     bridge::force_link();
     directory_model::force_link();
-    // Create the QGuiApplication, passing in arguments from the environment
+    // Create the QGuiApplication. Qt sees no argv here; the optional
+    // command-line path reaches QML through the bridge's initial_path
+    // property, which reads std::env::args when the bridge constructs.
     let mut app = QGuiApplication::new();
 
     // Initialize the QML engine
