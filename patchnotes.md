@@ -1,5 +1,53 @@
 # Patch Notes
 
+## v0.3.2 (2026-09-15)
+
+**Failed scans surface as errors; the Count column and honest sizes
+land.**
+
+- Failed scan roots: a nonexistent or unreadable root used to publish an
+  empty tree as "Scan complete.", wiping the displayed tree with no
+  error anywhere. A failed scan now reports "Scan failed: cannot read
+  <path>" on the progress line, emits no refresh signal, and leaves the
+  previously displayed tree untouched (the 2026-09-14 audit's one new
+  bug, verified live).
+- Phase 6 subtree counts: the Count header sorts for real now, and every
+  directory row shows its item count (files plus directories, the
+  directory itself included). FileCount had been a hardcoded 0 since
+  v0.2.4; the no-op Count sort is retired.
+- Tiered size formatter: rows and the progress line print B/KB/MB/GB/TB
+  in binary units instead of always dividing by 1 MB (a 500-byte file
+  read "0.00 MB"; a 4 GB file read "4096.00 MB").
+- Scan summary and window title: completion replaces the bare "Scan
+  complete." with the totals the scan already carried ("5,935 files,
+  171.18 MB in 0.0s"), and the title follows the scanned path.
+- Launch argument: `topograph <path>` seeds the scan field.
+- Natural sort for the Name key: case-insensitive with numeric digit
+  runs, so "Z" no longer sorts before "a" and "file10" lands after
+  "file9".
+- Scanner: one lstat per entry instead of two (jwalk does not cache
+  metadata; results ride its client_state to the main loop), with the
+  parent-before-child ordering assumption documented.
+- Model hygiene: sortBy reorders inside the begin/endResetModel pair
+  like every other mutation, and start_scan defensively cancels a
+  superseded walker.
+- lazy_static is gone (std::sync::LazyLock at its single use site).
+- CI hardening: checkout and install-qt-action SHA-pinned, a
+  contents:read permissions block, and rust-version = 1.85 (the edition
+  2024 floor) declared in both manifests. Releases stay manual cuts;
+  Releases for the three older tags were cut today from their tags.
+- Housekeeping: manifest license/description keys, SECURITY.md,
+  actions-only dependabot, a CI badge, .gitignore anchors with an
+  explicit CXX-Qt codegen comment, scaffold-status comments on the
+  aspirational-phase dead code, and the unused qml.qrc removed
+  (Brandon-approved).
+- Records riders: dated correction notes landed on the cross-fs toggle,
+  harness, and /proc/mounts roadmap boxes, and the collapse-fallback
+  mechanism is re-documented (the outcome is real and comes from the
+  click handler's re-targeting, not the removal fallback). v0.3.0's
+  "8 of them new since v0.2.4" was off by one: 9 was the count.
+- Tests: 17, up from 12.
+
 ## v0.3.1 (2026-09-13)
 
 **Keyboard navigation, plus the record repairs from the 2026-09-12
