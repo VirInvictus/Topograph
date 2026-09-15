@@ -1,0 +1,9 @@
+# Actions-only: automated Cargo bumps would fight the workspace's
+# ask-first dependency rule against cxx-qt 0.6 -> 0.7 churn, so only
+# workflow actions are tracked.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

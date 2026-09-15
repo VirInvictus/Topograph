@@ -2,13 +2,15 @@
 name = "topograph"
 version = "0.3.1"
 edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "Qt6/QML file system size explorer styled with Kanagawa Dragon"
 build = "build.rs"
 
 [dependencies]
-cxx = "1.0"
+cxx = "1.0" # required by cxx-qt codegen; no direct use in our code
 cxx-qt = "0.6"
 cxx-qt-lib = "0.6"
-lazy_static = "1.5.0"
 topograph-core = { path = "../topograph-core" }
 
 [build-dependencies]

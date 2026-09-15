@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
 env:
   CARGO_TERM_COLOR: always
 jobs:
@@ -10,12 +12,17 @@ jobs:
     name: build + test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      # actions/checkout v5.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        # jurplel/install-qt-action v3.3.0 (a v4 line exists; the aging
+        # note stays recorded)
+        uses: jurplel/install-qt-action@b3ea5275e37b734d027040e2c7fe7a10ea2ef946
         with:
           version: '6.6.0'
       - name: Install Rust toolchain
+        # Floating stable by choice: the manifests' rust-version = 1.85
+        # (edition 2024's floor) is the declared MSRV.
         uses: dtolnay/rust-toolchain@stable
       - name: cargo fmt --check
         run: cargo fmt --all --check
