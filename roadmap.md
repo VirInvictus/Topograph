@@ -51,15 +51,15 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
     - [x] Implement the bridging logic to stream scanned chunks back to the arena.
   - [x] Handle `EACCES` (Permission Denied) gracefully without crashing. *(2026-09-05 correction: failures silently zero the node's sizes; `NodeFlags` has no error bit yet, so "flagging with an error state" was aspirational.)*
   - [x] Tune thread pool size to physical CPU cores to maximize IOPS without thread contention. *(2026-09-05 correction: no pool is configured; traversal uses jwalk's default (rayon) pool.)*
-  - [x] Write a headless test harness running the scanner against a large system directory.
+  - [x] Write a headless test harness running the scanner against a large system directory. *(2026-09-15 correction: the harness (`test_scanner_on_src`) scans the crate's own `src/`, not a large system directory; the headline overstated what ships. A real-mount scan remains a recorded runtime session.)*
 
 - [x] Phase 3: **Deduplication & File System Boundaries**
-  - [x] Parse `/proc/mounts` at startup to build a list of external mounts (Solved via `st_dev` boundary checking).
+  - [x] Parse `/proc/mounts` at startup to build a list of external mounts (Solved via `st_dev` boundary checking). *(2026-09-15 correction: no `/proc/mounts` parsing exists anywhere; the boundary check compares `st_dev` per entry during the walk. The box's headline names a mechanism that never shipped; the substitute is the one disclosed inline.)*
   - [x] Compare `st_dev` (device ID) of directories against the root to prevent traversing into different filesystems.
   - [x] Implement a fast-path gate checking `st_nlink > 1` before performing hardlink deduplication.
   - [x] Create a sharded `DashMap` or partitioned `parking_lot::RwLock<HashSet>` for `(dev, inode)` tracking.
   - [x] Ensure the first encountered hardlink adds to total size; subsequent encounters add to file count but 0 to size.
-  - [x] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested.
+  - [ ] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested. *(2026-09-15 correction: only the `cross_filesystems` field exists (scanner.rs); no code path sets it, so no toggle is reachable from the UI or anywhere else. Either implement or retire; it was falsely ticked.)*
   - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
   - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
   - [ ] Write integration test verifying mount boundaries are strictly respected. *(Unticked 2026-09-13: the six-lens audit found this test never existed; the st_dev pruning in scanner.rs has zero test coverage. The scanner's walk/prune behavior is separately verified correct and untouched.)*
@@ -85,6 +85,7 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [ ] Add formatting logic for human-readable sizes (B, KB, MB, GB, TB). *(Unticked 2026-09-13: the audit found the only formatter always prints MB (the QML delegate divides by 1 MB and appends "MB"); the claim was never true. The tiered formatter is a ~10-line pull-forward if wanted.)*
   - [x] Implement a small inline visual percentage bar (QML `Rectangle`) in the size column. *(Ticked 2026-09-06: a Percent role computed as the row's aggregate size over its parent's aggregate size, drawn as an inline Kanagawa-aqua bar with a numeric share beside the size text.)*
   - [x] Bind keyboard navigation (Up/Down/Left/Right) to expand/collapse folders. *(Ticked 2026-09-13, v0.3.1: QML-side only, zero model changes. The ListView takes focus with a Kanagawa highlight; Up/Down are its built-in navigation; Left/Right call collapseRow/expandRow. Every expand/collapse/sort restores the selection across the full model reset by re-finding the row's snapshotted name+depth, with an index fallback when the operation removed the row (collapse with a descendant selected selects the collapsed parent). Row clicks and scan completion hand focus to the tree. Verified by driving the live app with synthetic key input.)*
+  *(2026-09-15 correction: the "collapse with a descendant selected selects the collapsed parent" outcome is real but comes from the click handler, which selects the clicked directory before collapsing it, so the snapshot is of the parent row itself and always re-finds it. The removal fallback would land on whatever row shifted into the old index and is unreachable at current call sites; keyboard Left only ever collapses the selected row, never an ancestor.)*
   - [ ] Ensure scrolling performance remains at 60FPS even with 100,000 expanded nodes.
   - [x] Handle model invalidation/reset when a new scan completes. *(Ticked 2026-09-05, mechanism replaced 2026-09-06: the refresh originally keyed on the QML string `progressText === "Scan complete."`, but the bridge writes `is_scanning` before the text, so the handler always read a stale value and the model never reloaded. `update_metrics` now emits a `scanFinished` signal after the properties settle, and QML reloads on that.)*
   - [x] Add sorting by Size (default), Name, or File Count. *(Ticked 2026-09-06: a `sortBy(key, descending)` invokable plus a QML sort header; sibling runs reorder in place with their subtrees, and newly expanded children follow the active sort. Count sorting is a stable no-op until Phase 6 subtree counts make the FileCount role real.)*
@@ -203,7 +204,7 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [ ] Scan request on a known subtree bypasses disk entirely and renders instantly (`Cache-hit a`).
   - [ ] Scan request on a parent of a known tree reuses known branches and only scans missing paths (`Cache-hit b`).
   - [ ] Add a "Refresh" action that invalidates a specific `NodeId` and its children for a targeted disk rescan.
-  - [ ] Seamlessly merge the targeted rescan results back into the global arena.
+  - [ ] Merge the targeted rescan results back into the global arena.
   - [ ] Recalculate aggregate sizes and geometry only for the affected branches.
   - [ ] Handle the case where the root directory was deleted or moved.
   - [ ] Provide a "Clear Cache" button in settings to dump the entire arena.
@@ -293,10 +294,12 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
       notes, or ship the ~10-line tiered formatter.
       *(Done 2026-09-13, v0.3.1: both unticked with dated notes; the
       tiered-formatter alternative stays open as a pull-forward.)*
-- [ ] **The retired boxes now render honestly** (unticked with RETIRED
-      notes adjacent - repaired 2026-09-12 after tonight's retirement
+- [x] **The retired boxes now render honestly** (unticked with RETIRED
+      notes adjacent; repaired 2026-09-12 after tonight's retirement
       commit initially ticked them; the notes' placement is now adjacent
       to their boxes).
+      *(Ticked 2026-09-15: the repair this box records was verified by
+      the final audit; the box itself was simply never ticked.)*
 - [x] **Blitz candidates:** the keyboard-nav lane (~60 lines of QML:
       focus + highlight + left/right expand/collapse; the real work is
       preserving the current row across the full model resets); the
@@ -334,11 +337,13 @@ Eight lenses + slop-reader at v0.3.1 (c331364). Tally after dedup: 1 HIGH / 6 ME
 - [x] [HIGH] GitHub presentation batch still open (the recorded box above): cut Releases for all three tags (`--notes-from-tag`), fix topic qt6--qml-cxx-qt, apply the drafted description.
       *(Done 2026-09-15: all three Releases cut, topic set replaced, description applied; see the recorded box above.)*
 - [ ] [MEDIUM] Failed-scan-root error path: an unreadable/nonexistent root publishes an empty tree as "Scan complete" and wipes the displayed tree; no error channel exists (scanner.rs:58-59, bridge.rs:132-141). Add an error flag to ScanMetrics or guard the empty-root publish.
-- [ ] [MEDIUM] Dated correction notes still owed on two boxes the 09-13 pass skipped: the cross-fs "opt-in toggle" (roadmap.md:62; `cross_filesystems` is a field no code can set) and the "large system directory" harness (roadmap.md:54; it scans the crate's own src/). Same class: roadmap.md:57 /proc/mounts (solved via st_dev, but no dated note), and roadmap.md:296-299 (done repair recorded in an unticked box; tick it).
+- [x] [MEDIUM] Dated correction notes still owed on two boxes the 09-13 pass skipped: the cross-fs "opt-in toggle" (roadmap.md:62; `cross_filesystems` is a field no code can set) and the "large system directory" harness (roadmap.md:54; it scans the crate's own src/). Same class: roadmap.md:57 /proc/mounts (solved via st_dev, but no dated note), and roadmap.md:296-299 (done repair recorded in an unticked box; tick it).
+      *(Done 2026-09-15: all four boxes carry dated notes now; the cross-fs box is unticked to the v0.2.4 style and the done-repair box is ticked.)*
 - [ ] [MEDIUM] README.md:21 sells Count sort as working (stable no-op, FileCount hardcoded 0); add the caveat or drop "or file count". Companion truth fixes: the collapse-fallback mechanism is misdocumented (the click handler's index reassignment produces the outcome, not the removal fallback; patchnotes.md:13-15, roadmap.md:87, CLAUDE.md:44-46), and patchnotes.md:66-67 says 8 new tests since v0.2.4 when it is 9.
 - [ ] [MEDIUM] Comment fixes: main.rs:10 claims arguments are passed to QGuiApplication (they are not); bridge.rs:176-178's force_link stub is bare while its sibling carries the load-bearing explanation.
 - [ ] [MEDIUM] CI hardening: Qt is pinned but Rust floats (@stable, no rust-toolchain.toml, no rust-version; edition 2024's 1.85 floor documented nowhere); SHA-pin checkout/install-qt-action; add a permissions block; decide release.yml (tag-triggered) vs manual cuts.
-- [ ] [LOW] Spec alignment with the honest-scope pass: "modern, attractive replacement... immense performance" (spec.md:4), "immense L1/L2 cache locality" (spec.md:18), geometry clause future tense (spec.md:7), trash example present tense (spec.md:10), ~20ms "measured, not gated" caveat (spec.md:18); roadmap.md:206 "Seamlessly"; roadmap.md:297 one ASCII-hyphen surrogate.
+- [x] [LOW] Spec alignment with the honest-scope pass: "modern, attractive replacement... immense performance" (spec.md:4), "immense L1/L2 cache locality" (spec.md:18), geometry clause future tense (spec.md:7), trash example present tense (spec.md:10), ~20ms "measured, not gated" caveat (spec.md:18); roadmap.md:206 "Seamlessly"; roadmap.md:297 one ASCII-hyphen surrogate.
+      *(Done 2026-09-15: spec.md de-inflated and future-tense claims rescope; the "Seamlessly" and the hyphen surrogate are fixed.)*
 - [ ] [LOW] Removal/housekeeping: qml.qrc referenced by nothing (delete behind a build check); scaffold-status comments on remove_subtree/IS_HIDDEN/IS_PSEUDO/mtime/allocated_size; "required by cxx-qt codegen" comment on the cxx dep; manifest license/description keys; README Qt6 package names + "GUI builds even for core-only runs" warning + Qt6/CXX-Qt attribution line; .gitignore anchor /target and /debug + one CXX-Qt rule; SECURITY.md; dependabot actions-only; CI badge; optional LazyLock swap and cargo-deny.
 - [ ] [LOW] Scanner polish riders: double lstat per entry (scanner.rs:72,:100); sort_by mutates outside the begin_reset_model pair (directory_model.rs:390-402); defensive cancel of a superseded walker in start_scan (bridge.rs:65-89); document build_tree_from_scan's parent-before-child ordering assumption (scanner.rs:145-163).
 

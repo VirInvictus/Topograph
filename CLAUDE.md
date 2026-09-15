@@ -41,9 +41,13 @@ Note: This project relies on Kanagawa Dragon for its styling. What ships today i
   publishes a full model reset, which clears `currentIndex`, so each QML wrapper
   snapshots the current row's name+depth before the call and re-finds it after
   (an `itemAtIndex` scan outward from the old index over the instantiated
-  delegates), falling back to the old index when the operation removed the row
-  (collapsing a directory while a descendant is selected selects the collapsed
-  parent). Row clicks and scan completion hand focus to the tree so the arrow
+  delegates), falling back to the old index when the operation removed the row.
+  At current call sites that fallback is unreachable: the click handler selects
+  the clicked row before collapsing it, so the snapshot is of the collapsing
+  row itself and always re-finds it ("collapse with a descendant selected ends
+  on the collapsed parent" is that re-targeting, not the fallback), and
+  keyboard Left only ever collapses the selected row, never an ancestor.
+  Row clicks and scan completion hand focus to the tree so the arrow
   keys work immediately.
 - The FileCount role is always 0 until per-subtree counts exist (Phase 6 is
   aspirational scope; see roadmap.md:4).
