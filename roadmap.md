@@ -330,6 +330,9 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
       cxx-qt 0.6.1 has a 0.7.x line (API churn, no urgency); dashmap
       5.5 has a 6.x line. All are routine modernizations for a future
       maintenance pass, not defects.
+      *(2026-09-15: actions-only dependabot is enabled and opened PRs
+      for install-qt-action v3.3.0 -> 4.3.1 and checkout v5.1.0 ->
+      v7.0.1; both left open for Brandon's merge call.)*
 
 ### Final audit 2026-09-14 (THE FINAL AUDIT: NEW findings, one line each; full detail in audit-final/Topograph/FINAL-REPORT.md)
 

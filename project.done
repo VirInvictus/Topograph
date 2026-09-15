@@ -1,0 +1,41 @@
+Topograph: blitz completion (2026-09-15)
+
+Shipped in THE FINAL BLITZ (commit range 6a9fd42..84613ef, tag v0.3.2):
+
+- v0.3.2 "failed-scan errors, real counts, honest sizes": the
+  failed-scan-root error path (the audit's one new bug), Phase 6
+  subtree counts (the Count header is real; count column added), the
+  tiered size formatter at both sites, scan summary + window title,
+  launch-argument seeding, natural-order Name sort, single-lstat
+  scanner restructure, sortBy inside the reset pair, defensive cancel
+  of superseded walkers, LazyLock swap, CI hardening (SHA-pinned
+  actions, permissions block, rust-version 1.85 MSRV), and the
+  housekeeping set (manifest keys, SECURITY.md, actions-only
+  dependabot, CI badge, .gitignore anchors, scaffold comments,
+  qml.qrc removal). 17 tests, green locally and in CI.
+- GitHub presentation batch: Releases cut for v0.2.4, v0.3.0, v0.3.1,
+  and v0.3.2 (v0.3.2 Latest); malformed topic replaced with
+  rust/qt6/qml/cxx-qt/filesystem/disk-usage/linux/kanagawa;
+  description rewritten without "blazing fast", treemap flagged as
+  planned.
+- Records: dated correction notes on the cross-fs toggle, harness,
+  and /proc/mounts boxes; the done-repair box ticked; the
+  collapse-fallback mechanism re-documented; the v0.3.0 test-count
+  off-by-one corrected in the v0.3.2 rider; spec.md de-inflated.
+
+Reopen conditions (recorded decisions, all Brandon's to schedule):
+
+- The treemap lane (Phases 8-12 pull-forward): the only item that
+  makes "visualizer" true; §5.11-gated, declined for the blitz.
+- The persistence/launcher lane: session persistence slice, folder
+  picker, path reconstruction + Open in File Manager, EACCES visible
+  state, and the cross-fs toggle (now unticked: implement or retire).
+- Brandon's hands-on sessions, both scheduled to follow v0.3.2: the
+  real-mount scan (usage evidence) and the 60FPS @ 100k-row eyeball
+  (roadmap Phase 5).
+- Two open dependabot PRs (checkout v5.1.0 -> v7.0.1,
+  install-qt-action v3.3.0 -> v4.3.1): his merge call.
+- The remaining feature board (progressive-during-scan stays argued
+  against; any trash/delete work is a spec-level decision).
+- The §5.11 aspirational block as a whole (Phases 6-20 + TUI): any
+  single phase can still be pulled forward as its own decision.
