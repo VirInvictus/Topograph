@@ -17,7 +17,7 @@ jobs:
       - name: Install Qt
         # jurplel/install-qt-action v3.3.0 (a v4 line exists; the aging
         # note stays recorded)
-        uses: jurplel/install-qt-action@b3ea5275e37b734d027040e2c7fe7a10ea2ef946
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
         with:
           version: '6.6.0'
       - name: Install Rust toolchain
