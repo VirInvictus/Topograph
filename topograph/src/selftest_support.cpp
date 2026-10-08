@@ -220,8 +220,11 @@ int topograph_selftest_capture(const QString &outDir, const QString &scanPath, b
 
     // Dynamic resize: geometryChange triggers the Rust relayout and the
     // repaint at the new size; the capture itself must come back 1400x900.
+    // Poll for the new size instead of a fixed sleep: the threaded render
+    // loop applies resizes asynchronously and a fixed pump has raced it.
     window->resize(QSize(1400, 900));
-    pump(700);
+    for (int i = 0; i < 60 && (window->width() != 1400 || window->height() != 900); ++i)
+        pump(50);
     const Grab resized = grab(window, outDir + "/04-resized.png");
     if (!resized.ok)
         return 12;
@@ -229,6 +232,48 @@ int topograph_selftest_capture(const QString &outDir, const QString &scanPath, b
         std::fprintf(stderr, "FAIL: resize did not take: %dx%d\n", resized.image.width(),
                      resized.image.height());
         return 13;
+    }
+
+    // Optional ~15s animation phase (TOPOGRAPH_SELFTEST_RECORD=1): three
+    // sweeps of 15 grabs each — the light circling the map, padding opening
+    // and closing the hierarchy gaps, and a resize round trip. Frames land
+    // in <out>/record/NNN.png; the Rust side encodes them with ffmpeg.
+    if (qEnvironmentVariable("TOPOGRAPH_SELFTEST_RECORD") == QLatin1String("1")) {
+        const QString frames = outDir + "/record";
+        QDir().mkpath(frames);
+        int frame = 0;
+        const auto shoot = [&](const char *label) {
+            char path[64];
+            std::snprintf(path, sizeof(path), "/%03d.png", frame++);
+            grab(window, frames + path);
+            std::fprintf(stdout, "record[%s] frame %02d\n", label, frame - 1);
+        };
+
+        map->setProperty("cushionHeight", 0.7);
+        map->setProperty("padding", 3.0);
+        for (int i = 0; i < 15; ++i) { // light circles the map once
+            map->setProperty("lightAngle", float(i) * (6.28318f / 15.0f));
+            pump(120);
+            shoot("light");
+        }
+        for (int i = 0; i < 15; ++i) { // padding opens then closes
+            const int p = i < 8 ? 3 + i : 10 - i;
+            map->setProperty("padding", float(p));
+            pump(120);
+            shoot("padding");
+        }
+        map->setProperty("lightAngle", 3.92699f);
+        for (int i = 0; i < 15; ++i) { // resize out and back
+            const int w = i < 8 ? 940 + (i + 1) * (1400 - 940) / 8
+                                : 1400 - (i - 7) * (1400 - 940) / 8;
+            const int h = 768 + (w - 940) * 132 / 460;
+            window->resize(QSize(w, h));
+            for (int j = 0; j < 40 && (window->width() != w || window->height() != h); ++j)
+                pump(40);
+            shoot("resize");
+        }
+        window->resize(QSize(1024, 768));
+        pump(300);
     }
 
     std::fprintf(stdout, "SELFTEST OK%s (%s)\n", pixelChecks ? "" : " (degraded: software)",

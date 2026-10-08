@@ -446,14 +446,18 @@ fn bump_deriv(u: f64, a: f64, b: f64) -> f64 {
 
 /// Cushion surface slopes at (x, y): every ridge contributes
 /// `h * bump'(x) * bump(y)` to dz/dx and `h * bump(x) * bump'(y)` to dz/dy.
+/// The derivatives are normalized by their own ridge extent (the u-domain
+/// derivative, van Wijk's formulation): in raw pixel space the same shape
+/// divides by the tile width, which flattened the relief into invisibility
+/// on every large tile.
 fn cushion_slopes(x: f64, y: f64, ridges: &[Ridge]) -> (f64, f64) {
     let mut dz_dx = 0.0;
     let mut dz_dy = 0.0;
     for r in ridges {
         let bx = bump(x, r.x0, r.x1);
         let by = bump(y, r.y0, r.y1);
-        dz_dx += r.height * bump_deriv(x, r.x0, r.x1) * by;
-        dz_dy += r.height * bx * bump_deriv(y, r.y0, r.y1);
+        dz_dx += r.height * bump_deriv(x, r.x0, r.x1) * (r.x1 - r.x0) * by;
+        dz_dy += r.height * bx * bump_deriv(y, r.y0, r.y1) * (r.y1 - r.y0);
     }
     (dz_dx, dz_dy)
 }
