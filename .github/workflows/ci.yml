@@ -30,3 +30,12 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: cargo test
         run: cargo test
+      - name: GUI selftest (headless)
+        # Offscreen RHI over llvmpipe; if the runner cannot do EGL at all,
+        # the binary falls back to the software renderer itself (treemap
+        # pixel checks print SKIP) and still exits zero.
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cargo build -p topograph --bin topograph-selftest
+          ./target/debug/topograph-selftest /tmp/topograph-selftest
