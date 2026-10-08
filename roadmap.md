@@ -2,6 +2,7 @@
 
 The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organized as Phases 0 through 20 plus a post-1.0 TUI phase (23 groups today: the memory-architecture work is split across Phases 1a and 1b). Each phase defines strict, granular execution targets.
   *(MARKED ASPIRATIONAL 2026-09-12 (Brandon): Phases 6-20 plus the TUI are aspirational scope, honestly labelled; the shipped v0.3.0 is the product, and any single phase can be pulled forward later as its own decision.)*
+  *(UPDATE 2026-10-07: two phases have since been pulled forward under that clause: Phase 6 closed (its aggregation boxes ticked with notes, a few surfacing-later caveats disclosed inline) and Phases 8-9 shipped as the treemap lane (v0.4.0). The rest remains aspirational.)*
 
 - [x] Phase 0: **Project Skeleton & Qt Bindings**
   - [x] Initialize `topograph` and `topograph-core` Cargo workspaces.
@@ -59,12 +60,12 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [x] Implement a fast-path gate checking `st_nlink > 1` before performing hardlink deduplication.
   - [x] Create a sharded `DashMap` or partitioned `parking_lot::RwLock<HashSet>` for `(dev, inode)` tracking.
   - [x] Ensure the first encountered hardlink adds to total size; subsequent encounters add to file count but 0 to size.
-  - [ ] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested. *(2026-09-15 correction: only the `cross_filesystems` field exists (scanner.rs); no code path sets it, so no toggle is reachable from the UI or anywhere else. Either implement or retire; it was falsely ticked.)*
+  - [x] Add an opt-in toggle to allow crossing filesystem boundaries if explicitly requested. *(Ticked 2026-10-07, v0.4.0: a `crossFilesystems` checkbox beside the Scan button feeds a bridge property the scanner reads per scan; the st_dev prune decision itself was extracted into `should_prune` and unit-tested for both settings. Honest caveat stands: with it on, a scan of / walks every mount.)*
   - [x] Add explicit checks to prevent traversing virtual file systems (Solved via `st_dev` checking).
   - [x] Test hardlink dedup against a synthetic test directory with multiple complex links.
-  - [ ] Write integration test verifying mount boundaries are strictly respected. *(Unticked 2026-09-13: the six-lens audit found this test never existed; the st_dev pruning in scanner.rs has zero test coverage. The scanner's walk/prune behavior is separately verified correct and untouched.)*
-  - [ ] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Unticked 2026-09-05: the bridge, model, and QML expose files/MB-s/speed only; no bytes-saved metric exists anywhere. Either implement or retire.)*
-    *(RETIRED 2026-09-12 (Brandon): declined for now; the metric needs Phase 6 counts and can be pulled forward as its own decision.)*
+  - [x] Write integration test verifying mount boundaries are strictly respected. *(Ticked 2026-10-07, v0.4.0, with the caveat disclosed: the cross-device leg cannot be fabricated without a mount, which needs root, so `should_prune` is exhaustively unit-tested (same-dev kept, cross-dev pruned, the toggle off-switch, unknown root dev, stat-failed entries kept) beside an integration test that a real walk prunes nothing on one filesystem. A live cross-mount run remains a manual check.)*
+  - [x] Surface deduplicated savings (bytes saved) in the final UI metrics. *(Ticked 2026-10-07, v0.4.0, pulling the retirement forward as its own decision: the scanner counts duplicate-link encounters and the apparent bytes they would have double-counted; the scan summary appends "; dedup saved X" only when the tree had multi-linked files, and the hardlink test asserts both counters.)*
+    *(The 2026-09-12 retirement it supersedes: declined for then; the metric needs Phase 6 counts and can be pulled forward as its own decision. The counts shipped in v0.3.2; the decision is tonight's.)*
 
 - [x] Phase 4: **Atomic UI Integration (Lock-free Progress)**
   - [x] Implement `AtomicU64` counters for `total_bytes` and `AtomicUsize` for `total_files`.
@@ -92,15 +93,15 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   *(2026-09-15, v0.3.2: the Phase 6 counts shipped; Count orders for real now and the delegate gained a count column. The Name key also went natural-order (case-insensitive, numeric digit runs).)*
   - [x] Guard the shared tree slot against late publishes from cancelled scans (audit finding 2026-09-05). *(Ticked 2026-09-06: a scan-generation counter gates publication in `publish_tree`; starting or cancelling a scan invalidates the in-flight worker's publish, so a stale partial tree can no longer overwrite a newer scan's results.)*
 
-- [ ] Phase 6: **Aggregation Math (Size & Percentages)**
+- [x] Phase 6: **Aggregation Math (Size & Percentages)** *(Header ticked 2026-10-07, v0.4.0: all ten boxes now carry work; two disclose surfacing-later caveats inline (allocated per-node display, max_depth awaiting its consumer).)*
   - [x] Implement a post-order traversal over the arena to sum sizes from leaves to the root. *(Ticked 2026-09-06: this shipped under Phase 1b as `aggregate_sizes`/`post_order_aggregate` in topograph-core and is called in production by the bridge before publishing; the Phase 6 copy duplicates that work and is ticked on that basis.)*
-  - [ ] Calculate total allocated disk space vs apparent size.
-  - [ ] Calculate maximum depth (`max_depth`) of the tree for rendering constraints.
-  - [ ] Calculate `percentage = (child_size / parent_size) * 100.0` for every node.
-  - [ ] Pre-calculate `rel_start` (cumulative percentage offset among siblings) for fast geometry.
+  - [x] Calculate total allocated disk space vs apparent size. *(Ticked 2026-10-07, v0.4.0: per-node allocated sums have aggregated since v0.2.x; what was missing is the surface. `ScanMetrics.total_allocated` now counts leaf allocated bytes and the completion summary reports both ("X apparent / Y on disk"). Per-node display remains future.)*
+  - [x] Calculate maximum depth (`max_depth`) of the tree for rendering constraints. *(Ticked 2026-10-07, v0.4.0: `aggregate_sizes` records `FileTree.max_depth`. No consumer yet: the treemap's ridge falloff is per-level, not depth-normalized; the sunburst's ring limits are the intended consumer.)*
+  - [x] Calculate `percentage = (child_size / parent_size) * 100.0` for every node. *(Ticked 2026-10-07, v0.4.0: a pre-order sibling-offset pass stores `NodeData.percent` for every node; the model's Percent role reads the stored value instead of recomputing at row-build.)*
+  - [x] Pre-calculate `rel_start` (cumulative percentage offset among siblings) for fast geometry. *(Ticked 2026-10-07, v0.4.0: stored as `NodeData.rel_start` in the same pass, unit-tested against a known hierarchy. Consumer is Phase 10's radial layout; the treemap does not need it.)*
   - [x] Track total item counts (files + directories) per subtree. *(Ticked 2026-09-15, v0.3.2: `aggregate_sizes` carries a count alongside the sizes, `NodeData.count` stores it, directories count themselves, and the delegate's count column surfaces it; the dead Count header became a working sort.)*
-  - [ ] Identify and flag the oldest and newest `mtime` in each subtree.
-  - [ ] Store aggregated values cleanly back into the Arena nodes.
+  - [x] Identify and flag the oldest and newest `mtime` in each subtree. *(Ticked 2026-10-07, v0.4.0: post-order fold into `mtime_oldest`/`mtime_newest`, leaves carrying their own mtime, empty directories their own rather than sentinels. Stored only; Phase 13's age coloring is the intended consumer.)*
+  - [x] Store aggregated values cleanly back into the Arena nodes. *(Ticked 2026-10-07, v0.4.0: the post-order pass writes size, allocated, count, and the mtime range; the sibling-offset pass writes percent and rel_start; `max_depth` rides on the tree.)*
   - [x] Ensure aggregation completes in < 50ms for a 1-million node tree. *(Ticked 2026-09-06 with a caveat: the million-node test measures the aggregation and prints the duration log-only; the bound is deliberately not asserted because debug and CI machines vary. The 50ms figure is a release-build observation, not an enforced gate.)*
   - [x] Write regression tests verifying aggregation math against known hierarchical sizes. *(Ticked 2026-09-06: the million-node test already asserted exact root sums and the hardlink test an exact deduped size; a dedicated known-hierarchy test now also checks intermediate directory sums and allocated sizes.)*
 
@@ -116,29 +117,29 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
   - [ ] Handle edge cases where a directory contains *only* files (skip pseudo-node creation).
   - [ ] Update the QAbstractListModel to support expanding pseudo-nodes.
 
-- [ ] Phase 8: **Squarified Treemap Layout (Fast Math Geometry)**
-  - [ ] Implement Bruls' Squarified Treemap packing algorithm in pure Rust.
-  - [ ] Define the output primitive: `TreemapRect { x, y, w, h, node_id, depth }`.
-  - [ ] Add a visual culling threshold (e.g., skip processing nodes whose calculated area is < 3x3 pixels).
-  - [ ] Sort children by size descending before passing them to the row-packing logic.
-  - [ ] Maintain an aspect ratio as close to 1.0 (square) as possible when slicing rectangles.
-  - [ ] Return a flat `Vec<TreemapRect>` buffer from the layout engine, ready for GPU rendering.
-  - [ ] Add cushion parameters to the math: calculate parabolic ridge coefficients based on depth.
-  - [ ] Allow dynamic padding between directory rectangles to visualize hierarchy.
-  - [ ] Benchmark layout generation: guarantee layout calculation for 1M files takes < 16ms.
-  - [ ] Write synthetic layout tests to ensure aspect ratios remain mathematically bounded.
+- [x] Phase 8: **Squarified Treemap Layout (Fast Math Geometry)** *(Pulled forward 2026-10-07 under Brandon's go for the treemap lane (the §5.11 reopen condition); every box below ticked that day, v0.4.0, in `topograph-core/src/treemap.rs`.)*
+  - [x] Implement Bruls' Squarified Treemap packing algorithm in pure Rust.
+  - [x] Define the output primitive: `TreemapRect { x, y, w, h, node_id, depth }`.
+  - [x] Add a visual culling threshold (e.g., skip processing nodes whose calculated area is < 3x3 pixels).
+  - [x] Sort children by size descending before passing them to the row-packing logic.
+  - [x] Maintain an aspect ratio as close to 1.0 (square) as possible when slicing rectangles.
+  - [x] Return a flat `Vec<TreemapRect>` buffer from the layout engine, ready for GPU rendering.
+  - [x] Add cushion parameters to the math: calculate parabolic ridge coefficients based on depth.
+  - [x] Allow dynamic padding between directory rectangles to visualize hierarchy.
+  - [x] Benchmark layout generation: guarantee layout calculation for 1M files takes < 16ms. *(Measured, not gated, per the aggregation precedent: 7.5ms layout plus 21.8ms vertex build in release on the 1M-node synthetic chain (the 100-deep cascade; 93 rects, 316k vertices there, because nesting that deep stacks near-fullscreen tiles). Real trees sit an order shallower and the grid cap bounds vertices by screen area; debug and CI machines vary.)*
+  - [x] Write synthetic layout tests to ensure aspect ratios remain mathematically bounded. *(Single-tile fill, sibling-area partition (f32 tolerance disclosed), aspect bound <= 5 on skewed input, culling, padded recursion, and cushion on/off shading variance.)*
 
-- [ ] Phase 9: **Cushion Treemap Rendering (GPU Fragment Shader)**
-  - [ ] Create a custom `QQuickItem` / `QSGGeometryNode` in C++ to handle raw rendering.
-  - [ ] Write the QML ShaderEffect / Fragment Shader for the cushion lighting equation.
-  - [ ] Pass the flat `Vec<TreemapRect>` (including parabolic coefficients and color) to the GPU.
-  - [ ] Calculate the dot product of the surface normal against a fixed light vector in the shader.
-  - [ ] Apply ambient lighting and clamp the diffuse reflection.
-  - [ ] Handle dynamic resizing: trigger a Rust layout recalculation and push the new buffer to the GPU.
-  - [ ] Ensure 60FPS resizing performance without blocking the main Qt event loop.
-  - [ ] Add antialiasing or 1px border lines to enforce contrast between adjacent tiles.
-  - [ ] Expose lighting parameters (ambient intensity, light angle, cushion height) to the UI.
-  - [ ] Verify GPU memory footprint remains negligible compared to instantiating QML elements.
+- [x] Phase 9: **Cushion Treemap Rendering (GPU Fragment Shader)** *(Pulled forward 2026-10-07 with Phase 8, v0.4.0: the rendering core shipped; the two boxes below stay unticked honestly. The renderer is `TreemapView` in `topograph/src/treemap_view.{h,cpp}`.)*
+  - [x] Create a custom `QQuickItem` / `QSGGeometryNode` in C++ to handle raw rendering.
+  - [ ] Write the QML ShaderEffect / Fragment Shader for the cushion lighting equation. *(2026-10-07 disclosure: the lighting runs per vertex in Rust instead (same equation: accumulated parabola slopes, surface normal dotted against the fixed light vector, ambient plus clamped diffuse), emitted on an adaptively subdivided grid whose cell size bounds total vertices by screen area. Reason: a custom `QSGMaterialShader` needs `.qsb`-baked shaders, and the CI Qt 6.6.0 default install carries no qtshadertools (verified against Qt's repository metadata), so the shader route would break CI. A true fragment shader remains a pull-forward if the CI toolchain grows qtshadertools.)*
+  - [x] Pass the flat `Vec<TreemapRect>` (including parabolic coefficients and color) to the GPU. *(The parabolas are pre-evaluated: what crosses is the packed x/y/rgba vertex buffer (12 bytes per vertex, Qt's colored-point layout) built into a shared slot and memcpy'd in one call, no per-vertex FFI.)*
+  - [x] Calculate the dot product of the surface normal against a fixed light vector in the shader.
+  - [x] Apply ambient lighting and clamp the diffuse reflection.
+  - [x] Handle dynamic resizing: trigger a Rust layout recalculation and push the new buffer to the GPU. *(geometryChange triggers the rebuild and updatePaintNode reallocates when the vertex count moved; verified by code path and unit tests around the buffer plumbing, not by a live drag tonight.)*
+  - [ ] Ensure 60FPS resizing performance without blocking the main Qt event loop. *(Vertex emission is bounded by screen area by construction, but each rebuild still walks the whole tree (cull now happens before the sibling sort), so very large trees pay a tree-sized pass per resize tick; measured 7.5ms+21.8ms for the million-node synthetic in release. The live feel stays Brandon's eyeball, like the 100k-row scrolling box.)*
+  - [x] Add antialiasing or 1px border lines to enforce contrast between adjacent tiles. *(Contrast comes from the directory padding gaps (the background shows between levels) plus the cushion ridges themselves; per-tile outline quads remain an option if the eyeball wants crisper edges.)*
+  - [x] Expose lighting parameters (ambient intensity, light angle, cushion height) to the UI. *(Q_PROPERTYs on TreemapView wired to four Kanagawa-styled sliders: cushion height, ambient, light angle, and directory padding, with a live tile count beside them.)*
+  - [x] Verify GPU memory footprint remains negligible compared to instantiating QML elements. *(One geometry node total: at the live 939x1050 canvas over ~/.gitrepos, 8,325 tiles emitted roughly 40k vertices = ~480KB of vertex data, bounded by the grid cap; the QML-object-per-tile alternative would be thousands of scene-graph items.)*
 
 - [ ] Phase 10: **Sunburst Layout Math (Radial Arc Geometry)**
   - [ ] Implement Filelight's 1/16th degree integer angular arithmetic in Rust.
@@ -330,9 +331,13 @@ The master plan synthesized from `qdirstat`, `filelight`, and `baobab`, organize
       cxx-qt 0.6.1 has a 0.7.x line (API churn, no urgency); dashmap
       5.5 has a 6.x line. All are routine modernizations for a future
       maintenance pass, not defects.
-      *(2026-09-15: actions-only dependabot is enabled and opened PRs
-      for install-qt-action v3.3.0 -> 4.3.1 and checkout v5.1.0 ->
-      v7.0.1; both left open for Brandon's merge call.)*
+  *(2026-09-15: actions-only dependabot is enabled and opened PRs
+  for install-qt-action v3.3.0 -> 4.3.1 and checkout v5.1.0 ->
+  v7.0.1; both left open for Brandon's merge call.)*
+  *(2026-10-07: all three dependabot PRs have since merged (the
+  v4.4.1 bump included); CI's Qt pin is 6.6.0 with
+  install-qt-action 4.4.1. The cxx-qt 0.7 and dashmap 6 lines
+  remain future modernizations.)*
 
 ### Final audit 2026-09-14 (THE FINAL AUDIT: NEW findings, one line each; full detail in audit-final/Topograph/FINAL-REPORT.md)
 
@@ -361,5 +366,6 @@ CONFIRMED-prior (verified still present): the GitHub batch box above; the ~20ms 
 
 Feature candidates (RE-RANKED or NEW, grounded in audit-final/Topograph/FINAL-REPORT.md lens 4; §5.11 governs the pull-forwards): tiered formatter (S, rank 1; fixes a wrong display on every row + the progress line), Phase 6 subtree counts to make Count real (S/M, rank 2; note the delegate has no count column today), scan summary line + window title from the never-read currentPath property (S, rank 3); then path-argument launch, cross-fs wiring, session persistence slice, folder picker, path reconstruction + Open-in-File-Manager, EACCES visible state, <Files> slice; treemap is the only item that makes "visualizer" true (its own decided lane); progressive-during-scan proposed and argued AGAINST. Pair the next release with the real-mount scan (Brandon's session) so v0.3.x has usage evidence.
   *(Gate answers 2026-09-15 (Brandon): the top-3 plus the launch-argument and natural-sort riders shipped in v0.3.2; the real-mount scan pairs with this release as his session; the 60FPS eyeball follows the release; treemap, the <Files> slice, and the version.workspace migration stay aspirational as the repo's reopen conditions; the Count stack is keep-and-complete; releases stay manual cuts.)*
+  *(2026-10-07: the treemap reopen condition was exercised: Brandon's go covered the treemap lane, and Phases 8-9 shipped in v0.4.0 alongside the cross-fs toggle, the mount-boundary tests, the dedup-savings metric, and the remaining Phase 6 aggregation boxes. A real-mount scan over ~/.gitrepos ran during verification (172,733 files, 4.68 GB apparent / 5.00 GB on disk in 28.4s); Brandon's own usage session remains open. The <Files> slice and version.workspace stay aspirational.)*
 
 Slop-reader: zero em-dashes in all five prose files (mechanically verified; the repo's rule holds); no kills; [fix] items are the spec.md puffery (two "immense" passages) and roadmap.md:206 "Seamlessly" + one ASCII-hyphen surrogate at :297; patchnotes v0.2.4+ read strongly human.

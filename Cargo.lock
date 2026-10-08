@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "topograph"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "cxx",
  "cxx-qt",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "topograph-core"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "bitflags",
  "crossbeam-channel",

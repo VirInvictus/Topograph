@@ -1,5 +1,64 @@
 # Patch Notes
 
+## v0.4.0 (2026-10-07)
+
+**The treemap lane lands: the squarified cushion treemap is the app's
+second view, rendered through one GPU geometry node.**
+
+- Treemap view: a Tree/Treemap toggle in the header swaps the content area
+  for the visualization. `topograph-core` gained the full layout engine
+  (Bruls squarified packing, children sorted by size descending, culling
+  below a 3-pixel-square tile, directories nesting inside their parents'
+  padded rectangles, Kanagawa depth-cycled directory colors). Release-mode
+  layout of the million-node synthetic tree measures 7.5ms (21.8ms including
+  vertex shading; logged, not gated, per the aggregation precedent).
+- Cushion rendering: the C++ `TreemapView` QQuickItem draws the whole map
+  as a single `QSGGeometryNode` fed by a flat vertex buffer computed in
+  Rust. The cushion lighting (van Wijk ridges per ancestor level, surface
+  normal against a fixed light, ambient plus clamped diffuse) is evaluated
+  per vertex on a grid sized by tile area, which bounds the vertex count by
+  the screen: the live ~/.gitrepos map emitted 8,325 tiles as roughly 40k
+  vertices, about 480KB. A fragment-shader variant stays on the roadmap;
+  the shader toolchain it needs (qtshadertools) is absent from the CI Qt
+  install, and the per-vertex route keeps CI green.
+- Live lighting controls: cushion height, ambient, light angle, and
+  directory padding sliders under the map, plus a running tile count. The
+  resize path relayouts through the same rebuild.
+- Cross-filesystem toggle: the "Cross filesystems" checkbox beside Scan
+  feeds the scanner's `cross_filesystems` flag (off by default; with it on,
+  a scan of / walks every mount). The st_dev prune decision was extracted
+  into a `should_prune` function, unit-tested for both settings.
+- Mount-boundary tests: the cross-device leg cannot be fabricated without
+  a mount (root), so the decision function is exhaustively unit-tested
+  (same-dev kept, cross-dev pruned, toggle off-switch, unknown root
+  device, stat-failed entries kept) beside an integration test that a real
+  walk prunes nothing on one filesystem. A live cross-mount run stays a
+  manual check.
+- Dedup savings surfaced: duplicate hardlink encounters and the apparent
+  bytes they would have double-counted now flow into the summary ("; dedup
+  saved 1.00 KB" only when the tree had multi-linked files).
+- The summary line grew its second total: "5,935 files, 171.16 MB
+  apparent / 204.70 MB on disk in 0.4s". Directory stat bytes no longer
+  count toward either total, so the summary now matches the tree's
+  aggregated root size exactly (directory inodes used to inflate it).
+- Phase 6 aggregation boxes closed: per-node percent and the sibling-run
+  offset (rel_start, the sunburst's future input) are stored in the arena
+  by a second aggregation pass, subtree oldest/newest mtimes fold in
+  post-order, and `FileTree.max_depth` records the tree's depth. The
+  model's Percent role reads the stored share instead of recomputing it.
+- Tests: 31, up from 17 (eight treemap layout/shading tests, the mount
+  boundary suite, the cross-fs flag test, dedup metric assertions, summary
+  formatting, and vertex packing round-trips).
+- Verification: driven live on a real session (scan of ~/.gitrepos, both
+  views, controls) and headless where the machine allows; weston's
+  headless backend renders the app, though this Fedora build ships no
+  screenshooter module, so stills came from the live captures. The
+  100k-row scrolling and live-resize 60FPS eyeballs remain recorded as
+  Brandon's sessions.
+- Housekeeping since v0.3.2 (no behavior change): the three dependabot
+  action bumps merged (checkout v7.0.1, install-qt-action v4.3.1 then
+  v4.4.1), FUNDING.yml, and the project.done/docs commit.
+
 ## v0.3.2 (2026-09-15)
 
 **Failed scans surface as errors; the Count column and honest sizes

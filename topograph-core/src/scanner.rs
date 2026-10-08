@@ -19,10 +19,31 @@ pub struct ScanResult {
 pub struct ScanMetrics {
     pub total_files: AtomicUsize,
     pub total_bytes: AtomicU64,
+    /// Total allocated (on-disk) bytes of the counted entries, alongside the
+    /// apparent-size `total_bytes`; the scan summary shows both.
+    pub total_allocated: AtomicU64,
+    /// Apparent bytes NOT counted because a hardlink to the same inode was
+    /// already seen, plus how many such duplicate links were encountered.
+    /// Zero when a tree has no multi-linked files.
+    pub dedup_saved_bytes: AtomicU64,
+    pub dedup_links: AtomicUsize,
     pub is_finished: AtomicBool,
     /// The scan failed (root missing or unreadable): the bridge surfaces it
     /// as an error instead of publishing an empty tree as success.
     pub failed: AtomicBool,
+}
+
+/// The mount-boundary decision, extracted so it can be tested without a
+/// second filesystem: an entry is pruned when boundaries are enforced, the
+/// root device is known, and the entry's st_dev differs from the root's.
+/// Stat-failed entries (ok = false) are kept; their sizes zero out later.
+pub fn should_prune(
+    cross_filesystems: bool,
+    root_dev: u64,
+    entry_dev: u64,
+    entry_ok: bool,
+) -> bool {
+    !cross_filesystems && root_dev != 0 && entry_ok && entry_dev != root_dev
 }
 
 pub struct Scanner {
@@ -110,13 +131,14 @@ impl Scanner {
                         }
                     }
                     if !cross_fs && root_dev != 0 {
-                        // Dynamically prune directories that cross into another
+                        // Dynamically prune entries that cross into another
                         // filesystem (e.g. /proc, /sys, or mounted drives),
-                        // deciding on the stashed dev.
+                        // deciding on the stashed dev. `should_prune` is the
+                        // extracted, unit-tested form of this decision.
                         children.retain(|dir_entry_result| match dir_entry_result {
                             Ok(dir_entry) => {
                                 let meta = dir_entry.client_state;
-                                !meta.ok || meta.dev == root_dev
+                                !should_prune(cross_fs, root_dev, meta.dev, meta.ok)
                             }
                             Err(_) => true,
                         });
@@ -156,11 +178,17 @@ impl Scanner {
                             .unwrap_or_default()
                     };
 
-                    let (size, allocated_size, mtime) = if !file_type.is_dir() && meta.ok && meta.nlink > 1
-                            // If insert returns false, the (dev, ino) is already known!
-                            && !seen_inodes.insert((meta.dev, meta.ino))
-                    {
+                    let is_dupe = !file_type.is_dir()
+                        && meta.ok
+                        && meta.nlink > 1
+                        // If insert returns false, the (dev, ino) is already known!
+                        && !seen_inodes.insert((meta.dev, meta.ino));
+                    let (size, allocated_size, mtime) = if is_dupe {
                         flags.insert(NodeFlags::IS_HARDLINK_DUPE);
+                        metrics
+                            .dedup_saved_bytes
+                            .fetch_add(meta.size, Ordering::Relaxed);
+                        metrics.dedup_links.fetch_add(1, Ordering::Relaxed);
                         (0, 0, meta.mtime)
                     } else {
                         (meta.size, meta.allocated, meta.mtime)
@@ -169,7 +197,15 @@ impl Scanner {
                     let name = dir_entry.file_name().to_string_lossy().to_string();
 
                     metrics.total_files.fetch_add(1, Ordering::Relaxed);
-                    metrics.total_bytes.fetch_add(size, Ordering::Relaxed);
+                    // Leaf sizes only: directory stat sizes (a few KB of
+                    // inode, not content) are replaced by child sums during
+                    // aggregation, and the summary now matches the tree.
+                    if !file_type.is_dir() {
+                        metrics.total_bytes.fetch_add(size, Ordering::Relaxed);
+                        metrics
+                            .total_allocated
+                            .fetch_add(allocated_size, Ordering::Relaxed);
+                    }
 
                     let result = ScanResult {
                         path,
@@ -229,6 +265,67 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn mount_boundaries_are_respected_by_the_prune_decision() {
+        // The st_dev prune decision, exhaustively. A true cross-device entry
+        // is pruned under the default strict boundaries; every escape hatch
+        // (the cross-filesystem toggle, an unknown root device, a stat
+        // failure) keeps the entry.
+        let root_dev = 0xfd00;
+        assert!(!should_prune(false, root_dev, 0xfd00, true));
+        assert!(should_prune(false, root_dev, 0x1234, true));
+        // The toggle turns boundary enforcement off entirely.
+        assert!(!should_prune(true, root_dev, 0x1234, true));
+        // An unstat-able root leaves boundaries unknown: nothing is pruned.
+        assert!(!should_prune(false, 0, 0x1234, true));
+        // Stat-failed entries are kept; their sizes zero out downstream.
+        assert!(!should_prune(false, root_dev, 0x1234, false));
+    }
+
+    #[test]
+    fn same_filesystem_walk_prunes_nothing() {
+        // Integration leg: a real walk over a fixture with nested
+        // directories keeps every entry, because every st_dev in one
+        // tempdir-filesystem matches the root's. Fabricating a second device
+        // needs a mount (root), so the cross-device leg lives in the
+        // decision test above and in a manual cross-mount run.
+        let dir = tempdir().unwrap();
+        let sub = dir.path().join("sub");
+        fs::create_dir(&sub).unwrap();
+        fs::write(sub.join("a.txt"), b"a").unwrap();
+        fs::write(dir.path().join("b.txt"), b"b").unwrap();
+
+        let scanner = Scanner::new();
+        let rx = scanner.scan_dir(dir.path());
+        let mut tree = build_tree_from_scan(rx);
+        tree.aggregate_sizes();
+
+        let root = tree.get_root().unwrap();
+        // Root plus two files plus one subdirectory: nothing was pruned.
+        assert_eq!(tree.get_data(root).unwrap().count, 4);
+    }
+
+    #[test]
+    fn cross_filesystems_flag_reaches_the_walker() {
+        // The toggle is a plain field on Scanner, read once per scan; both
+        // settings yield identical trees on a single filesystem (the flag
+        // only disables the cross-device prune).
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("x.txt"), b"x").unwrap();
+
+        let mut scanner = Scanner::new();
+        assert!(
+            !scanner.cross_filesystems,
+            "boundaries are strict by default"
+        );
+        scanner.cross_filesystems = true;
+
+        let rx = scanner.scan_dir(dir.path());
+        let mut tree = build_tree_from_scan(rx);
+        tree.aggregate_sizes();
+        assert_eq!(tree.get_data(tree.get_root().unwrap()).unwrap().count, 2);
+    }
+
+    #[test]
     fn test_scanner_on_src() {
         let scanner = Scanner::new();
         let start = Instant::now();
@@ -255,6 +352,7 @@ mod tests {
         fs::hard_link(&file1_path, &file2_path).unwrap();
 
         let scanner = Scanner::new();
+        let metrics = scanner.metrics.clone();
         let rx = scanner.scan_dir(dir.path());
         let mut tree = build_tree_from_scan(rx);
         tree.aggregate_sizes();
@@ -263,6 +361,10 @@ mod tests {
         // Even though there are two 1024-byte files, because of hardlink dedup,
         // the size should exactly equal 1024.
         assert_eq!(root_data.size, 1024);
+        // The dedup savings surface in the metrics: one duplicate link,
+        // 1024 apparent bytes that were not counted twice.
+        assert_eq!(metrics.dedup_links.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.dedup_saved_bytes.load(Ordering::Relaxed), 1024);
     }
 
     #[test]

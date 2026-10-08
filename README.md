@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/VirInvictus/Topograph/actions/workflows/ci.yml/badge.svg)](https://github.com/VirInvictus/Topograph/actions/workflows/ci.yml)
 
-A native Qt6/QML file system size explorer: fast, local-first, and styled with Kanagawa Dragon. The qdirstat-style treemap visualization is planned but not built yet.
+A native Qt6/QML file system size explorer: fast, local-first, and styled with Kanagawa Dragon. The qdirstat-style squarified cushion treemap is built in, rendered through a single GPU geometry node.
 
 ## Building
 
@@ -30,6 +30,20 @@ failed" and leaves the displayed tree untouched.
 The tree is keyboard navigable: Up/Down move the selection, Left collapses
 and Right expands the selected directory, and the selection follows the row
 through expanding, collapsing, and re-sorting.
+
+Flip the view to Treemap for the squarified cushion visualization: directory
+tiles nest inside their parents with Kanagawa-cycled depth colors, files fill
+in as dimmer tiles, and the cushion ridges shade against a top-left light so
+the hierarchy reads at a glance. Sliders adjust cushion height, ambient
+light, light angle, and directory padding live; small tiles are culled below
+a 3-pixel square so huge trees stay GPU-cheap. The lighting is evaluated per
+vertex on a grid sized by tile area (no shader tooling needed); a fragment
+shader variant stays on the roadmap.
+
+The completion summary reports both totals, apparent and on-disk, plus what
+hardlink deduplication saved, and a "Cross filesystems" checkbox beside Scan
+opts into descending into mounted filesystems (off by default, so scanning /
+stays on the root device).
 
 ## License
 

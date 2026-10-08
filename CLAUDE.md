@@ -2,7 +2,7 @@
 
 ## Topograph
 
-A fast, local-first file system size explorer; the treemap visualization is planned.
+A fast, local-first file system size explorer with a squarified cushion treemap view.
 
 **Language:** Rust 2024
 **Framework:** Qt6 / QML (via CXX-Qt)
@@ -11,7 +11,7 @@ A fast, local-first file system size explorer; the treemap visualization is plan
 - Run: `cargo run -p topograph`
 - Tests: `cargo test`
 
-Note: This project relies on Kanagawa Dragon for its styling. What ships today is a plain QML ListView over the Rust core; the GPU-shader rendering phases (treemap, sunburst) are aspirational scope, marked as such at roadmap.md:4, not shipped. No libadwaita or GTK logic exists here anymore.
+Note: This project relies on Kanagawa Dragon for its styling. Two views ship: the plain QML ListView over the Rust core (tree mode) and the treemap (a custom C++ `QQuickItem` rendering one `QSGGeometryNode`). The sunburst phases and the rest of Phases 10-20 + TUI remain aspirational scope, marked as such at roadmap.md:4. No libadwaita or GTK logic exists here anymore.
 
 ## Model notes
 
@@ -25,8 +25,10 @@ Note: This project relies on Kanagawa Dragon for its styling. What ships today i
   the active sort. Keys: size (default, descending), name (natural order:
   case-insensitive, numeric digit runs), count (per-subtree item count).
 - The Percent role is the row's aggregate size over its parent's aggregate
-  size, computed at row-build time in the model (not stored in the arena);
-  the QML delegate draws it as an inline bar in the size column. The count
+  size, stored on every node by the aggregation's sibling-offset pass since
+  v0.4.0 (`NodeData.percent`; the model reads the stored share at row-build
+  and hardcodes the root row at 100); the QML delegate draws it as an inline
+  bar in the size column. The count
   column reads FileCount (real since v0.3.2), and sizes render through the
   `formatSize` invokable (binary-unit B/KB/MB/GB/TB in
   `bridge::format_size`, shared with the progress line).
@@ -40,7 +42,9 @@ Note: This project relies on Kanagawa Dragon for its styling. What ships today i
   failed scan (root missing or unreadable: `ScanMetrics.failed`) publishes
   nothing and skips the `scanFinished` emit, so the model keeps the tree it
   had; the progress line is the error channel ("Scan failed: cannot read
-  <path>"). Completion reports the totals ("N files, X in Ys") and the window
+  <path>"). Completion reports both totals ("N files, X apparent / Y on disk
+  in Zs", plus "; dedup saved W" only when hardlinks deduplicated anything)
+  and the window
   title follows the scanned path. `topograph <path>` seeds the scan field
   through the `initial_path` property (read from std::env::args at bridge
   construction).
@@ -63,3 +67,34 @@ Note: This project relies on Kanagawa Dragon for its styling. What ships today i
 - The FileCount role carries the per-subtree item count written by
   `aggregate_sizes` (files + directories, each directory counting itself);
   leaves store 1. Before v0.3.2 it was hardcoded 0.
+- The treemap (v0.4.0): all layout, cushion, and lighting math lives in
+  `topograph-core/src/treemap.rs` (squarified packing, culling below a
+  3-pixel square, depth-tinted Kanagawa directory colors, per-vertex cushion
+  shading on an area-bounded grid). The GUI side is a hand-written C++
+  `TreemapView` (`topograph/src/treemap_view.{h,cpp}`, mocz'd via
+  `qobject_header` in build.rs, compiled by the same cc build as the
+  CXX-Qt-generated sources, registered as a QML type under
+  `com.topograph.treemap` from a static initializer). The data path is two
+  extern-"Rust" functions, `treemap_rebuild`/`treemap_copy_vertices`: the
+  buffer is built into the `TREEMAP_VERTICES` slot (same global-slot pattern
+  as `LATEST_TREE`) as packed x/y-f32 + rgba8 bytes (Qt's colored-point
+  layout, 12 bytes/vertex) and copied into the QSGGeometry in one call, so
+  there is no per-vertex FFI. `bridge::force_link` calls
+  `topograph_treemap_force_link()` (defined in treemap_view.cpp) to anchor
+  that object file against linker stripping; treat it like the other
+  force_link stubs.
+- Why the cushion lighting is per-vertex, not a fragment shader: a custom
+  `QSGMaterialShader` requires `.qsb`-baked shaders (qtshadertools), which
+  the CI Qt 6.6.0 default install does not carry (checked against Qt's
+  repository metadata, 2026-10-07). The equation is identical, evaluated at
+  grid vertices in Rust and interpolated by hardware. If CI ever grows
+  qtshadertools, the fragment-shader box on roadmap Phase 9 is the
+  pull-forward.
+- GUI verification runs headless where possible: unit tests cover the
+  buffer packing and the model/bridge logic; visual checks so far were live
+  captures on the session. For a no-session display, weston's
+  headless-backend renders the app (weston --backend=headless-backend.so
+  with kiosk-shell, app on WAYLAND_DISPLAY of that socket), but this Fedora
+  weston build ships no screenshooter module and its VNC backend is
+  TLS/RSA-AES-only, so stills+input headlessly would need a small selftest
+  harness (QQuickWindow::grabWindow) rather than compositor tooling.

@@ -3,6 +3,25 @@ pub mod scan_bridge {
     unsafe extern "C++" {
         include!("cxx-qt-lib/qstring.h");
         type QString = cxx_qt_lib::QString;
+
+        include!("treemap_view.h");
+        fn topograph_treemap_force_link();
+    }
+
+    extern "Rust" {
+        // Treemap vertex plumbing for the C++ QSGGeometryNode renderer: the
+        // buffer is built into a process-global slot (same pattern as
+        // LATEST_TREE) and copied out in one call, so no per-vertex FFI.
+        fn treemap_rebuild(
+            width: f32,
+            height: f32,
+            cushion_height: f32,
+            ambient: f32,
+            light_angle: f32,
+            padding: f32,
+        ) -> usize;
+        unsafe fn treemap_copy_vertices(out: *mut u8, len: usize);
+        fn treemap_tile_count() -> usize;
     }
 
     unsafe extern "RustQt" {
@@ -13,6 +32,7 @@ pub mod scan_bridge {
         #[qproperty(QString, speed_text)]
         #[qproperty(QString, current_path)]
         #[qproperty(QString, initial_path)]
+        #[qproperty(bool, cross_filesystems)]
         type ScanBridge = super::ScanBridgeRust;
 
         #[qinvokable]
@@ -35,9 +55,10 @@ use cxx_qt_lib::QString;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use topograph_core::FileTree;
 use topograph_core::scanner::Scanner;
+use topograph_core::treemap::{self, TreemapOptions, TreemapVertex};
 
 /// Bumped whenever a scan starts or is cancelled. A scan's worker thread may
 /// finish building its tree long after that, so its captured generation is
@@ -49,6 +70,17 @@ static TREE_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// dependency out; there is exactly one use site.
 pub static LATEST_TREE: LazyLock<Arc<RwLock<Option<FileTree>>>> =
     LazyLock::new(|| Arc::new(RwLock::new(None)));
+
+/// The packed treemap vertex buffer handed to the C++ renderer: interleaved
+/// little-endian x,y (f32) + rgba (u8), 12 bytes per vertex, the exact
+/// layout of Qt's colored-point geometry. Single-consumer assumption, like
+/// LATEST_TREE: one TreemapView interleaves rebuild/copy pairs safely, a
+/// second instance would need its own plumbing.
+pub static TREEMAP_VERTICES: LazyLock<RwLock<Vec<u8>>> = LazyLock::new(|| RwLock::new(Vec::new()));
+
+/// Tile (laid rectangle) count from the last rebuild, for the UI counter;
+/// distinct from the vertex count (each tile emits a grid of triangles).
+pub static TREEMAP_TILE_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// Human-readable size in binary units: the largest unit that keeps the
 /// value at or above 1, two decimals (976.56 KB, 1.50 MB); byte counts stay
@@ -81,6 +113,97 @@ pub(crate) fn format_count(n: usize) -> String {
     grouped
 }
 
+/// Packs vertices into the renderer's byte format: little-endian x/y floats
+/// followed by straight RGBA bytes, 12 bytes per vertex.
+fn pack_vertices(vertices: &[TreemapVertex]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(vertices.len() * 12);
+    for v in vertices {
+        bytes.extend_from_slice(&v.x.to_le_bytes());
+        bytes.extend_from_slice(&v.y.to_le_bytes());
+        bytes.extend_from_slice(&v.color);
+    }
+    bytes
+}
+
+/// Builds the treemap for the currently displayed tree at `width` x
+/// `height`, stores it in the shared slot, and returns the byte count. An
+/// absent tree stores an empty buffer (the renderer shows nothing). Reading
+/// LATEST_TREE holds its read lock only for the build, which takes
+/// single-digit milliseconds at full HD sizes.
+fn treemap_rebuild(
+    width: f32,
+    height: f32,
+    cushion_height: f32,
+    ambient: f32,
+    light_angle: f32,
+    padding: f32,
+) -> usize {
+    let options = TreemapOptions {
+        cushion_height,
+        ambient,
+        light_angle,
+        padding,
+        ..TreemapOptions::default()
+    };
+    let mut bytes = Vec::new();
+    let mut tiles = 0usize;
+    if let Ok(lock) = LATEST_TREE.read()
+        && let Some(tree) = lock.as_ref()
+        && let Some(root) = tree.get_root()
+    {
+        let (verts, laid) = treemap::build_vertices_counted(tree, root, width, height, &options);
+        tiles = laid;
+        bytes = pack_vertices(&verts);
+    }
+    let len = bytes.len();
+    if let Ok(mut slot) = TREEMAP_VERTICES.write() {
+        *slot = bytes;
+    }
+    TREEMAP_TILE_COUNT.store(tiles, Ordering::Relaxed);
+    len
+}
+
+/// Tile count from the last rebuild, for the UI counter.
+fn treemap_tile_count() -> usize {
+    TREEMAP_TILE_COUNT.load(Ordering::Relaxed)
+}
+
+/// Copies the stored vertex buffer to the renderer's memory. The caller
+/// allocates from the length `treemap_rebuild` returned; copying is bounded
+/// to whichever side is shorter, so a rebuild racing between the two calls
+/// cannot write past the destination.
+fn treemap_copy_vertices(out: *mut u8, len: usize) {
+    if let Ok(lock) = TREEMAP_VERTICES.read() {
+        let n = len.min(lock.len());
+        if n > 0 {
+            unsafe { std::ptr::copy_nonoverlapping(lock.as_ptr(), out, n) };
+        }
+    }
+}
+
+/// The completion summary: entry count, apparent vs allocated totals, scan
+/// duration, and the hardlink-dedup savings when the tree had multi-linked
+/// files.
+pub(crate) fn scan_summary(
+    files: usize,
+    bytes: u64,
+    allocated: u64,
+    saved: u64,
+    secs: f64,
+) -> String {
+    let mut summary = format!(
+        "{} files, {} apparent / {} on disk in {:.1}s",
+        format_count(files),
+        format_size(bytes),
+        format_size(allocated),
+        secs
+    );
+    if saved > 0 {
+        summary.push_str(&format!("; dedup saved {}", format_size(saved)));
+    }
+    summary
+}
+
 pub struct ScanBridgeRust {
     is_scanning: bool,
     progress_text: QString,
@@ -89,6 +212,10 @@ pub struct ScanBridgeRust {
     /// A path from the command line, surfaced to QML so it can seed the
     /// path field before the first scan.
     initial_path: QString,
+    /// Opt-in mount-boundary crossing (the Phase 3 toggle): off by default,
+    /// so a scan of / stays on the root filesystem. With it on, the walk
+    /// descends into every mounted filesystem it meets.
+    cross_filesystems: bool,
 
     // Internal state
     scanner: Option<Arc<Scanner>>,
@@ -105,6 +232,7 @@ impl Default for ScanBridgeRust {
             speed_text: QString::default(),
             current_path: QString::default(),
             initial_path: QString::from(std::env::args().nth(1).unwrap_or_default().as_str()),
+            cross_filesystems: false,
             scanner: None,
             last_files_count: 0,
             last_update_time: None,
@@ -128,7 +256,11 @@ impl scan_bridge::ScanBridge {
             previous.cancel();
         }
 
-        let scanner = Arc::new(Scanner::new());
+        // The mount-boundary toggle is read once per scan; flipping it
+        // mid-scan takes effect on the next scan.
+        let mut scanner = Scanner::new();
+        scanner.cross_filesystems = self.rust().cross_filesystems;
+        let scanner = Arc::new(scanner);
         let mut rust_mut = self.as_mut().rust_mut();
         rust_mut.scanner = Some(scanner.clone());
         rust_mut.last_files_count = 0;
@@ -172,12 +304,25 @@ impl scan_bridge::ScanBridge {
             return;
         }
 
-        let (files, bytes, elapsed, files_diff, now, is_finished, failed, scan_started) = {
+        let (
+            files,
+            bytes,
+            allocated,
+            saved,
+            elapsed,
+            files_diff,
+            now,
+            is_finished,
+            failed,
+            scan_started,
+        ) = {
             let rust = self.rust();
             if let Some(scanner) = &rust.scanner {
                 let metrics = &scanner.metrics;
                 let files = metrics.total_files.load(Ordering::Relaxed);
                 let bytes = metrics.total_bytes.load(Ordering::Relaxed);
+                let allocated = metrics.total_allocated.load(Ordering::Relaxed);
+                let saved = metrics.dedup_saved_bytes.load(Ordering::Relaxed);
                 let is_finished = metrics.is_finished.load(Ordering::Relaxed);
                 let failed = metrics.failed.load(Ordering::Relaxed);
 
@@ -194,6 +339,8 @@ impl scan_bridge::ScanBridge {
                 (
                     files,
                     bytes,
+                    allocated,
+                    saved,
                     elapsed,
                     files_diff,
                     now,
@@ -221,12 +368,7 @@ impl scan_bridge::ScanBridge {
                 let total = scan_started
                     .map(|t| t.elapsed().as_secs_f64())
                     .unwrap_or(0.0);
-                let summary = format!(
-                    "{} files, {} in {:.1}s",
-                    format_count(files),
-                    format_size(bytes),
-                    total
-                );
+                let summary = scan_summary(files, bytes, allocated, saved, total);
                 self.as_mut().set_progress_text(QString::from(&summary));
                 // Emitted after the properties settle: the old string-keyed QML
                 // refresh read progressText inside onIsScanningChanged, which
@@ -272,6 +414,10 @@ pub fn force_link() {
     // method keeps the generated object file linked so QML can find the
     // type. Same pattern as directory_model::force_link; never delete.
     let _ = scan_bridge::ScanBridge::start_scan as *const ();
+    // Same job for the hand-written C++ TreemapView: it registers its QML
+    // type from a static initializer, so without this call the linker drops
+    // its object file and the com.topograph.treemap import dies at runtime.
+    scan_bridge::topograph_treemap_force_link();
 }
 
 #[cfg(test)]
@@ -333,5 +479,87 @@ mod tests {
         assert_eq!(format_count(1_000), "1,000");
         assert_eq!(format_count(100_000), "100,000");
         assert_eq!(format_count(1_234_567), "1,234,567");
+    }
+
+    #[test]
+    fn scan_summary_shows_both_totals_and_dedup_savings() {
+        // Apparent and on-disk totals, no dedup clause without hardlinks.
+        assert_eq!(
+            scan_summary(5935, 179_472_793, 214_643_507, 0, 0.42),
+            "5,935 files, 171.16 MB apparent / 204.70 MB on disk in 0.4s"
+        );
+        // Savings append when duplicate links were encountered.
+        assert_eq!(
+            scan_summary(10, 2048, 8192, 1024, 1.0),
+            "10 files, 2.00 KB apparent / 8.00 KB on disk in 1.0s; dedup saved 1.00 KB"
+        );
+    }
+
+    #[test]
+    fn pack_vertices_matches_the_colored_point_layout() {
+        let verts = vec![TreemapVertex {
+            x: 1.5,
+            y: -2.25,
+            color: [1, 2, 3, 255],
+        }];
+        let bytes = pack_vertices(&verts);
+        assert_eq!(bytes.len(), 12);
+        assert_eq!(&bytes[0..4], &1.5f32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &(-2.25f32).to_le_bytes());
+        assert_eq!(&bytes[8..12], &[1, 2, 3, 255]);
+    }
+
+    #[test]
+    fn treemap_slot_round_trips_and_empty_tree_clears_it() {
+        let _guard = TEST_LOCK.lock().unwrap();
+
+        // A published tree lays tiles into the slot.
+        *LATEST_TREE.write().unwrap() = Some(fixture_tree());
+        let len = treemap_rebuild(400.0, 300.0, 0.7, 0.55, 3.927, 3.0);
+        assert!(len > 0);
+        assert_eq!(len % 12, 0);
+        // Four laid tiles (a, sub, b, c), each a grid of triangles: the
+        // counter reports tiles, not vertices.
+        assert_eq!(treemap_tile_count(), 4);
+        {
+            let slot = TREEMAP_VERTICES.read().unwrap();
+            assert_eq!(slot.len(), len);
+            // Opaque alpha on the first vertex.
+            assert_eq!(slot[11], 255);
+        }
+        let mut out = vec![0u8; len];
+        treemap_copy_vertices(out.as_mut_ptr(), len);
+        assert_eq!(out, *TREEMAP_VERTICES.read().unwrap().as_slice());
+
+        // No tree (a failed scan never publishes): the slot empties and the
+        // renderer draws nothing.
+        *LATEST_TREE.write().unwrap() = None;
+        let len = treemap_rebuild(400.0, 300.0, 0.7, 0.55, 3.927, 3.0);
+        assert_eq!(len, 0);
+        assert!(TREEMAP_VERTICES.read().unwrap().is_empty());
+        assert_eq!(treemap_tile_count(), 0);
+
+        // A short destination buffer copies only what fits.
+        *LATEST_TREE.write().unwrap() = Some(fixture_tree());
+        treemap_rebuild(400.0, 300.0, 0.7, 0.55, 3.927, 3.0);
+        let mut small = vec![0u8; 12];
+        treemap_copy_vertices(small.as_mut_ptr(), 12);
+        assert_eq!(&small, &TREEMAP_VERTICES.read().unwrap().as_slice()[..12]);
+
+        *LATEST_TREE.write().unwrap() = None;
+        *TREEMAP_VERTICES.write().unwrap() = Vec::new();
+    }
+
+    /// root/ with two files and a subdirectory, aggregated.
+    fn fixture_tree() -> FileTree {
+        use topograph_core::{NodeData, NodeFlags};
+        let mut tree = FileTree::new();
+        let root = tree.set_root(NodeData::new("root", 0, 0, 0, NodeFlags::IS_DIRECTORY));
+        tree.add_child(root, NodeData::new("a", 600, 600, 0, NodeFlags::empty()));
+        let sub = tree.add_child(root, NodeData::new("sub", 0, 0, 0, NodeFlags::IS_DIRECTORY));
+        tree.add_child(sub, NodeData::new("b", 300, 300, 0, NodeFlags::empty()));
+        tree.add_child(sub, NodeData::new("c", 100, 100, 0, NodeFlags::empty()));
+        tree.aggregate_sizes();
+        tree
     }
 }

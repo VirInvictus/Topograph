@@ -151,16 +151,6 @@ pub enum Roles {
     Percent = 0x0106,
 }
 
-/// A node's share of its parent's aggregated size, in percent. A zero parent
-/// (an empty directory) leaves every child at zero rather than dividing.
-fn percent_of(size: u64, parent_size: u64) -> f64 {
-    if parent_size == 0 {
-        0.0
-    } else {
-        (size as f64 / parent_size as f64) * 100.0
-    }
-}
-
 /// Maps a QML-facing sort key name onto its enum value.
 fn sort_key_from_qstring(key: &QString) -> Option<SortKey> {
     match key.to_string().as_str() {
@@ -232,7 +222,6 @@ fn split_chunk(s: &str) -> (&str, &str) {
 
 /// Builds the display rows for the direct children of `parent`, one level deep.
 fn child_rows(tree: &FileTree, parent: NodeId, depth: u32, sort: SortState) -> Vec<NodeDisplay> {
-    let parent_size = tree.get_data(parent).map(|d| d.size).unwrap_or(0);
     let mut rows: Vec<NodeDisplay> = tree
         .get_children(parent)
         .map(|node_id| {
@@ -247,7 +236,9 @@ fn child_rows(tree: &FileTree, parent: NodeId, depth: u32, sort: SortState) -> V
                 is_directory: data.flags.contains(NodeFlags::IS_DIRECTORY),
                 depth,
                 expanded: false,
-                percent: percent_of(data.size, parent_size),
+                // The stored per-node share written by aggregate_sizes
+                // (the Phase 6 pass); identical math, computed once.
+                percent: data.percent as f64,
             }
         })
         .collect();
@@ -502,15 +493,7 @@ mod tests {
     }
 
     #[test]
-    fn percent_of_handles_math_and_zero_parents() {
-        assert_eq!(percent_of(25, 100), 25.0);
-        assert_eq!(percent_of(100, 100), 100.0);
-        assert_eq!(percent_of(0, 100), 0.0);
-        assert_eq!(percent_of(50, 0), 0.0); // empty parent: no division
-    }
-
-    #[test]
-    fn child_rows_compute_percent_against_the_parent() {
+    fn child_rows_carry_the_stored_sibling_offset_percent() {
         let (tree, root, ..) = sample_tree();
         // Aggregation first, like the bridge does before publishing.
         let mut tree = tree;
@@ -527,10 +510,11 @@ mod tests {
         );
 
         // The sample tree sums to 15 bytes: a/ holds 10, b.txt holds 5.
+        // The stored share is f32, so compare at f32 precision.
         assert_eq!(rows[0].file_name, "a");
-        assert!((rows[0].percent - (10.0 / 15.0) * 100.0).abs() < 1e-9);
+        assert!((rows[0].percent - (10.0 / 15.0) * 100.0).abs() < 1e-4);
         assert_eq!(rows[1].file_name, "b.txt");
-        assert!((rows[1].percent - (5.0 / 15.0) * 100.0).abs() < 1e-9);
+        assert!((rows[1].percent - (5.0 / 15.0) * 100.0).abs() < 1e-4);
     }
 
     #[test]
