@@ -1,11 +1,15 @@
 [package]
 name = "topograph"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
 description = "Qt6/QML file system size explorer styled with Kanagawa Dragon"
 build = "build.rs"
+
+[[bin]]
+name = "topograph-selftest"
+path = "src/selftest.rs"
 
 [dependencies]
 cxx = "1.0" # required by cxx-qt codegen; no direct use in our code

@@ -1,5 +1,31 @@
 # Patch Notes
 
+## v0.4.1 (2026-10-07)
+
+**A headless GUI selftest: the app drives itself and captures frames
+without a display.**
+
+- `topograph-selftest`: a second binary in the GUI crate loads the real
+  main.qml on Qt's offscreen platform, starts a scan by invoking the
+  bridge directly (no synthetic input), flips to the treemap, toggles the
+  cushion off, resizes the window to 1400x900, and saves a frame after
+  every step via QQuickWindow::grabWindow. Exit code zero means every
+  step passed; captures land in the output directory (default
+  /tmp/topograph-selftest). This closes the resize-path verification the
+  v0.4.0 note deferred and retires live-session GUI checking.
+- Graphics negotiation: the default run tries the GPU path (offscreen
+  RHI; works here through Mesa surfaceless EGL plus llvmpipe) because the
+  software scene graph cannot draw the treemap's raw QSGGeometryNode.
+  When the GPU path is unavailable the binary re-execs itself once on the
+  software backend, where the treemap's pixel comparisons print SKIP
+  lines instead of silently passing. TOPOGRAPH_SELFTEST_GL=1 disables the
+  fallback; TOPOGRAPH_SELFTEST_SOFTWARE=1 starts on software directly.
+- Dead ends recorded in CLAUDE.md so they are not retried: Qt's VNC
+  platform dies under Qt Quick, and this Fedora weston ships neither a
+  screenshooter module nor a plaintext VNC backend, so compositor-based
+  headless capture is not possible on this machine.
+- No user-facing changes; the app binary itself is untouched.
+
 ## v0.4.0 (2026-10-07)
 
 **The treemap lane lands: the squarified cushion treemap is the app's

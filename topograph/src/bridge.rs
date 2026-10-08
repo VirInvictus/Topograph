@@ -6,6 +6,13 @@ pub mod scan_bridge {
 
         include!("treemap_view.h");
         fn topograph_treemap_force_link();
+
+        include!("selftest_support.h");
+        fn topograph_selftest_capture(
+            out_dir: &QString,
+            scan_path: &QString,
+            pixel_checks: bool,
+        ) -> i32;
     }
 
     extern "Rust" {
@@ -418,6 +425,10 @@ pub fn force_link() {
     // type from a static initializer, so without this call the linker drops
     // its object file and the com.topograph.treemap import dies at runtime.
     scan_bridge::topograph_treemap_force_link();
+    // The selftest entry point lives in the topograph-selftest bin; the
+    // main bin never calls it, so reference it here to keep the bridge's
+    // declaration compiled in both binaries.
+    let _: fn(&QString, &QString, bool) -> i32 = scan_bridge::topograph_selftest_capture;
 }
 
 #[cfg(test)]

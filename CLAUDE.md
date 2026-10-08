@@ -90,11 +90,21 @@ Note: This project relies on Kanagawa Dragon for its styling. Two views ship: th
   grid vertices in Rust and interpolated by hardware. If CI ever grows
   qtshadertools, the fragment-shader box on roadmap Phase 9 is the
   pull-forward.
-- GUI verification runs headless where possible: unit tests cover the
-  buffer packing and the model/bridge logic; visual checks so far were live
-  captures on the session. For a no-session display, weston's
-  headless-backend renders the app (weston --backend=headless-backend.so
-  with kiosk-shell, app on WAYLAND_DISPLAY of that socket), but this Fedora
-  weston build ships no screenshooter module and its VNC backend is
-  TLS/RSA-AES-only, so stills+input headlessly would need a small selftest
-  harness (QQuickWindow::grabWindow) rather than compositor tooling.
+- GUI verification is headless: `cargo run -p topograph --bin
+  topograph-selftest` loads the real main.qml on Qt's offscreen platform,
+  starts a scan by invoking the bridge directly (no synthetic input,
+  no compositor), flips to the treemap, toggles the cushion, resizes to
+  1400x900, and captures a frame after every step via
+  QQuickWindow::grabWindow (the walk lives in src/selftest_support.cpp;
+  the fixture and graphics negotiation in src/selftest.rs). Exit 0 means
+  every step passed; captures land in the output dir (default
+  /tmp/topograph-selftest). Graphics: the default run tries the GPU path
+  (offscreen RHI; works here via Mesa surfaceless EGL + llvmpipe) because
+  the software scene graph cannot draw the treemap's raw QSGGeometryNode;
+  if the GPU path is dead it re-execs once on software, where the
+  treemap pixel checks print SKIP lines. Env overrides:
+  TOPOGRAPH_SELFTEST_GL=1 (no fallback), TOPOGRAPH_SELFTEST_SOFTWARE=1.
+  Dead ends recorded (do not retry): Qt's VNC platform segfaults under Qt
+  Quick, and this Fedora weston ships no screenshooter module plus a
+  TLS/RSA-AES-only VNC backend, so compositor-based headless capture is a
+  dead end on this machine.

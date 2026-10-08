@@ -17,6 +17,7 @@ fn main() {
         .cc_builder(|cc| {
             cc.include("src");
             cc.file("src/treemap_view.cpp");
+            cc.file("src/selftest_support.cpp");
         })
         .build();
 }
