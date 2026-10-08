@@ -10,6 +10,7 @@
 #include <QtGui/QImage>
 #include <QtGui/QWindow>
 #include <QtQuick/QQuickItem>
+#include <QtQuick/QSGRendererInterface>
 #include <QtQuick/QQuickWindow>
 
 #include <cstdio>
@@ -113,6 +114,23 @@ int topograph_selftest_capture(const QString &outDir, const QString &scanPath, b
                      static_cast<long long>(windows.size()));
         return 1;
     }
+
+    // Which renderer actually came up? Qt may fall back to the software
+    // scene graph on its own (it did on the aqt-Qt CI runner: no usable EGL
+    // on the offscreen platform there), and that renderer draws QML items
+    // but not raw QSGGeometryNode content, so the treemap pixel checks
+    // would fail rather than SKIP. Report a dedicated code and let the bin
+    // re-exec itself on an explicitly-software run.
+    const auto api = window->rendererInterface()->graphicsApi();
+    const char *apiName = api == QSGRendererInterface::Software     ? "software"
+                          : api == QSGRendererInterface::OpenGL     ? "opengl"
+                          : api == QSGRendererInterface::Vulkan     ? "vulkan"
+                          : api == QSGRendererInterface::Metal      ? "metal"
+                          : api == QSGRendererInterface::Direct3D11 ? "d3d11"
+                                                                    : "unknown";
+    std::fprintf(stdout, "renderer: %s\n", apiName);
+    if (pixelChecks && api == QSGRendererInterface::Software)
+        return 14;
 
     // The initial shell, before any scan. A blank/null grab here means the
     // graphics path produced nothing at all (the caller's retry cue).

@@ -45,11 +45,14 @@ fn main() {
 
     let code = run(&out_dir, &fixture, !force_software);
 
-    if code == 1 || code == 2 && !no_fallback && !force_software {
-        // The graphics path produced no window or nothing renderable at
-        // all; retry once on the software backend (offscreen, forced) so a
+    // Retry triggers: no window (1), nothing renderable at all (2), or the
+    // renderer came up as software when GL pixel checks were requested (14;
+    // Qt can fall back to the software scene graph on its own when the
+    // platform has no usable EGL, as on the CI runner).
+    if (code == 1 || code == 2 || code == 14) && !no_fallback && !force_software {
+        // Retry once on the software backend (offscreen, forced) so a
         // machine without headless EGL still gets the non-pixel checks.
-        eprintln!("GPU path unavailable (code {code}); retrying on the software renderer");
+        eprintln!("GL path unavailable (code {code}); retrying on the software renderer");
         let exe = std::env::current_exe().expect("selftest exe path");
         let status = std::process::Command::new(exe)
             .args(std::env::args().skip(1))
